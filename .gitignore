@@ -1,0 +1,44 @@
+# Built-in and OS files
+.DS_Store
+Thumbs.db
+desktop.ini
+*.tmp
+*.bak
+*.swp
+*~
+
+# IDE and Editor configurations
+.idea/
+android/.idea/
+*.iml
+.vscode/
+
+# Gradle and Build caches
+.gradle/
+android/.gradle/
+build/
+android/build/
+android/app/build/
+android/captures/
+android/.externalNativeBuild/
+android/.cxx/
+
+# Android Studio and SDK local properties
+local.properties
+android/local.properties
+
+# Android packaging and signing outputs
+*.apk
+*.aab
+*.ap_
+*.dex
+*.keystore
+*.jks
+
+# ESP32 and Arduino firmware build outputs
+.pio/
+firmware/**/build/
+firmware/**/cache/
+*.bin
+*.hex
+*.elf
