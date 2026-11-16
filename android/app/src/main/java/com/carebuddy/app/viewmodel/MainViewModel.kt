@@ -13,6 +13,7 @@ import com.carebuddy.app.ble.CareBuddyBleManager
 import com.carebuddy.app.data.CareBuddyRepository
 import com.carebuddy.app.data.EmergencyContact
 import com.carebuddy.app.data.Reminder
+import com.carebuddy.app.service.CareBuddyBleService
 import com.carebuddy.app.sos.DiagnosticsInfo
 import com.carebuddy.app.sos.SosDispatchState
 import com.carebuddy.app.sos.SosDispatcher
@@ -41,6 +42,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     val connectionState: StateFlow<BleConnectionState> = bleManager.connectionState
     val deviceName: StateFlow<String?> = bleManager.deviceName
     val sosDispatchState: StateFlow<SosDispatchState> = sosDispatcher.dispatchState
+
+    val ringingReminder: StateFlow<Reminder?> = CareBuddyBleService.instance?.ringingReminder
+        ?: MutableStateFlow(null)
 
     private val _reminders = MutableStateFlow<List<Reminder>>(emptyList())
     val reminders: StateFlow<List<Reminder>> = _reminders

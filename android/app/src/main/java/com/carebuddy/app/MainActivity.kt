@@ -1,15 +1,18 @@
 package com.carebuddy.app
 
 import android.Manifest
+import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
+import android.util.Log
 import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
 import androidx.core.content.ContextCompat
+import com.carebuddy.app.service.CareBuddyBleService
 import com.carebuddy.app.ui.components.CareBuddyAppNavigation
 import com.carebuddy.app.ui.theme.CareBuddyTheme
 import com.carebuddy.app.viewmodel.MainViewModel
@@ -18,12 +21,17 @@ class MainActivity : ComponentActivity() {
 
     private val viewModel: MainViewModel by viewModels()
 
+    companion object {
+        private const val TAG = "MainActivity"
+    }
+
     private val requestPermissionLauncher = registerForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions()
     ) { permissions ->
         val allGranted = permissions.entries.all { it.value }
         if (allGranted) {
             Toast.makeText(this, "All permissions granted! Ready to pair with CareBuddy.", Toast.LENGTH_SHORT).show()
+            startBleServiceIfPermitted()
         } else {
             Toast.makeText(this, "Permissions required for BLE connection and Emergency Alerts.", Toast.LENGTH_LONG).show()
         }
@@ -33,11 +41,34 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
 
         checkAndRequestPermissions()
+        handleSosLaunchIntent(intent)
 
         setContent {
             CareBuddyTheme {
                 CareBuddyAppNavigation(viewModel = viewModel)
             }
+        }
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        handleSosLaunchIntent(intent)
+    }
+
+    private fun handleSosLaunchIntent(intent: Intent?) {
+        if (intent?.getBooleanExtra(CareBuddyBleService.EXTRA_NAVIGATE_TO_SOS, false) == true) {
+            Log.i(TAG, "Navigating to SOS screen from Full-Screen Notification Intent")
+            viewModel.triggerSosAlert(isTest = false)
+        }
+    }
+
+    private fun startBleServiceIfPermitted() {
+        try {
+            val serviceIntent = Intent(this, CareBuddyBleService::class.java)
+            ContextCompat.startForegroundService(this, serviceIntent)
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed starting CareBuddyBleService", e)
         }
     }
 
@@ -71,6 +102,8 @@ class MainActivity : ComponentActivity() {
 
         if (permissionsToRequest.isNotEmpty()) {
             requestPermissionLauncher.launch(permissionsToRequest.toTypedArray())
+        } else {
+            startBleServiceIfPermitted()
         }
     }
 }
