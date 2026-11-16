@@ -1,17 +1,21 @@
 package com.carebuddy.app.ui.components
 
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Home
-import androidx.compose.material.icons.filled.Notifications
-import androidx.compose.material.icons.filled.Phone
-import androidx.compose.material.icons.filled.Settings
-import androidx.compose.material3.*
+import androidx.compose.material.icons.outlined.Alarm
+import androidx.compose.material.icons.outlined.Home
+import androidx.compose.material.icons.outlined.Phone
+import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.unit.dp
 import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
@@ -19,18 +23,15 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import com.carebuddy.app.ui.screens.*
-import com.carebuddy.app.ui.theme.SlateCard
-import com.carebuddy.app.ui.theme.SlateDark
-import com.carebuddy.app.ui.theme.TealLight
-import com.carebuddy.app.ui.theme.TextMuted
+import com.carebuddy.app.ui.theme.CareBuddyTheme
 import com.carebuddy.app.viewmodel.MainViewModel
 
 sealed class Screen(val route: String, val title: String, val icon: ImageVector) {
-    object Dashboard : Screen("dashboard", "Dashboard", Icons.Default.Home)
-    object Reminders : Screen("reminders", "Reminders", Icons.Default.Notifications)
-    object Contacts : Screen("contacts", "Emergency", Icons.Default.Phone)
-    object Settings : Screen("settings", "Settings", Icons.Default.Settings)
-    object AddEditReminder : Screen("add_edit_reminder?id={id}", "Edit Reminder", Icons.Default.Notifications)
+    object Dashboard : Screen("dashboard", "Today", Icons.Outlined.Home)
+    object Reminders : Screen("reminders", "Reminders", Icons.Outlined.Alarm)
+    object Contacts : Screen("contacts", "Emergency", Icons.Outlined.Phone)
+    object Settings : Screen("settings", "Settings", Icons.Outlined.Settings)
+    object AddEditReminder : Screen("add_edit_reminder?id={id}", "Edit Reminder", Icons.Outlined.Alarm)
 }
 
 @Composable
@@ -38,55 +39,30 @@ fun CareBuddyAppNavigation(
     viewModel: MainViewModel,
     navController: NavHostController = rememberNavController()
 ) {
-    val items = listOf(
+    val tabScreens = listOf(
         Screen.Dashboard,
         Screen.Reminders,
         Screen.Contacts,
         Screen.Settings
     )
 
+    val tabItems = tabScreens.map { screen ->
+        TabItem(route = screen.route, title = screen.title, icon = screen.icon)
+    }
+
     val navBackStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = navBackStackEntry?.destination?.route
 
-    Scaffold(
-        bottomBar = {
-            if (currentRoute in items.map { it.route }) {
-                NavigationBar(
-                    containerColor = SlateCard,
-                    contentColor = TealLight
-                ) {
-                    items.forEach { screen ->
-                        NavigationBarItem(
-                            icon = { Icon(screen.icon, contentDescription = screen.title) },
-                            label = { Text(screen.title) },
-                            selected = currentRoute == screen.route,
-                            colors = NavigationBarItemDefaults.colors(
-                                selectedIconColor = SlateDark,
-                                selectedTextColor = TealLight,
-                                indicatorColor = TealLight,
-                                unselectedIconColor = TextMuted,
-                                unselectedTextColor = TextMuted
-                            ),
-                            onClick = {
-                                navController.navigate(screen.route) {
-                                    popUpTo(navController.graph.findStartDestination().id) {
-                                        saveState = true
-                                    }
-                                    launchSingleTop = true
-                                    restoreState = true
-                                }
-                            }
-                        )
-                    }
-                }
-            }
-        },
-        containerColor = SlateDark
-    ) { paddingValues ->
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(CareBuddyTheme.colors.background)
+            .imePadding()
+    ) {
         NavHost(
             navController = navController,
             startDestination = Screen.Dashboard.route,
-            modifier = Modifier.padding(paddingValues)
+            modifier = Modifier.fillMaxSize()
         ) {
             composable(Screen.Dashboard.route) {
                 DashboardScreen(
@@ -117,6 +93,28 @@ fun CareBuddyAppNavigation(
                     onNavigateBack = { navController.popBackStack() }
                 )
             }
+        }
+
+        // Floating Glass Tab Bar (visible on top-level destinations)
+        AnimatedVisibility(
+            visible = currentRoute in tabScreens.map { it.route },
+            enter = fadeIn(),
+            exit = fadeOut(),
+            modifier = Modifier.align(Alignment.BottomCenter)
+        ) {
+            FloatingTabBar(
+                items = tabItems,
+                currentRoute = currentRoute,
+                onItemSelected = { selectedTab ->
+                    navController.navigate(selectedTab.route) {
+                        popUpTo(navController.graph.findStartDestination().id) {
+                            saveState = true
+                        }
+                        launchSingleTop = true
+                        restoreState = true
+                    }
+                }
+            )
         }
 
         // Overlay SOS Alert Modal Screen whenever SOS is active

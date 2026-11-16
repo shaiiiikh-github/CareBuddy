@@ -12,6 +12,7 @@ import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
 import androidx.core.content.ContextCompat
+import androidx.core.view.WindowCompat
 import com.carebuddy.app.service.CareBuddyBleService
 import com.carebuddy.app.ui.components.CareBuddyAppNavigation
 import com.carebuddy.app.ui.theme.CareBuddyTheme
@@ -39,6 +40,7 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        WindowCompat.setDecorFitsSystemWindows(window, false)
 
         checkAndRequestPermissions()
         handleSosLaunchIntent(intent)
