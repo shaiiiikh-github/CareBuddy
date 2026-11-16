@@ -1,18 +1,28 @@
 package com.carebuddy.app.ui.screens
 
+import android.content.Intent
+import android.net.Uri
+import android.os.Build
+import android.provider.Settings
+import android.widget.Toast
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.BatteryAlert
 import androidx.compose.material.icons.filled.Bluetooth
+import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.Error
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Schedule
+import androidx.compose.material.icons.filled.Sms
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.carebuddy.app.ble.BleConnectionState
@@ -22,13 +32,21 @@ import com.carebuddy.app.viewmodel.MainViewModel
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SettingsScreen(viewModel: MainViewModel) {
+    val context = LocalContext.current
     val connectionState by viewModel.connectionState.collectAsState()
     val deviceName by viewModel.deviceName.collectAsState()
     val currentSosMsg by viewModel.sosCustomMessage.collectAsState()
+    val contacts by viewModel.emergencyContacts.collectAsState()
 
     var sosMessageText by remember { mutableStateOf(currentSosMsg) }
     var minTouchMs by remember { mutableFloatStateOf(80f) }
     var sosHoldMs by remember { mutableFloatStateOf(3000f) }
+    var diagnostics by remember { mutableStateOf(viewModel.getDiagnosticsInfo()) }
+
+    // Refresh diagnostics when screen is opened
+    LaunchedEffect(Unit) {
+        diagnostics = viewModel.getDiagnosticsInfo()
+    }
 
     Scaffold(
         topBar = {
@@ -111,8 +129,92 @@ fun SettingsScreen(viewModel: MainViewModel) {
                 }
             }
 
+            // System Diagnostics Section
+            Text("System Diagnostics & Permissions", style = MaterialTheme.typography.titleLarge, color = TextSecondary)
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(containerColor = SlateCard),
+                shape = RoundedCornerShape(16.dp)
+            ) {
+                Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    DiagnosticItem("Send SMS Permission", diagnostics.sendSmsGranted)
+                    DiagnosticItem("Call Phone Permission", diagnostics.callPhoneGranted)
+                    DiagnosticItem("Post Notifications", diagnostics.postNotificationsGranted)
+                    DiagnosticItem("Bluetooth / Scan Permissions", diagnostics.bluetoothGranted)
+                    DiagnosticItem("Battery Optimization Exempt", diagnostics.batteryOptimizationExempt)
+                    DiagnosticItem("Full-Screen Intent Allowed", diagnostics.fullScreenIntentAllowed)
+
+                    HorizontalDivider(color = SlateCardBorder)
+
+                    Text(
+                        text = "Last SOS Result: ${diagnostics.lastSosResult}",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = TextPrimary
+                    )
+
+                    // Battery Optimization Exemption Button if not exempt
+                    if (!diagnostics.batteryOptimizationExempt) {
+                        Button(
+                            onClick = {
+                                try {
+                                    val intent = Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS).apply {
+                                        data = Uri.parse("package:${context.packageName}")
+                                        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                                    }
+                                    context.startActivity(intent)
+                                } catch (_: Exception) {
+                                    try {
+                                        val intent = Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS)
+                                        context.startActivity(intent)
+                                    } catch (_: Exception) {}
+                                }
+                            },
+                            colors = ButtonDefaults.buttonColors(containerColor = AmberWarning),
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(10.dp)
+                        ) {
+                            Icon(Icons.Default.BatteryAlert, contentDescription = null, tint = SlateDark)
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text("Exempt from Battery Optimization", color = SlateDark, fontWeight = FontWeight.Bold)
+                        }
+                    }
+
+                    // Test SMS Transmission Button
+                    val primaryContact = contacts.firstOrNull { it.isPrimary } ?: contacts.firstOrNull()
+                    Button(
+                        onClick = {
+                            if (primaryContact != null) {
+                                viewModel.sendTestSmsToContact(primaryContact) { _, msg ->
+                                    Toast.makeText(context, msg, Toast.LENGTH_LONG).show()
+                                    diagnostics = viewModel.getDiagnosticsInfo()
+                                }
+                            } else {
+                                Toast.makeText(context, "Please add an emergency contact first!", Toast.LENGTH_LONG).show()
+                            }
+                        },
+                        colors = ButtonDefaults.buttonColors(containerColor = TealLight),
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(10.dp)
+                    ) {
+                        Icon(Icons.Default.Sms, contentDescription = null, tint = SlateDark)
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            if (primaryContact != null) "Send Test SMS to ${primaryContact.name}" else "Send Test SMS (No Contact)",
+                            color = SlateDark,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+
+                    Text(
+                        text = "Note: 'Test SOS' on the dashboard simulates the OLED/BLE alarm without sending SMS. The button above verifies your phone's carrier SMS dispatch.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = TextMuted
+                    )
+                }
+            }
+
             // Custom SOS Alert Message
-            Text("Emergency Message Template", style = MaterialTheme.typography.titleLarge, color = TextSecondary)
+            Text("Emergency Message Template (GSM-7)", style = MaterialTheme.typography.titleLarge, color = TextSecondary)
             OutlinedTextField(
                 value = sosMessageText,
                 onValueChange = {
@@ -166,7 +268,6 @@ fun SettingsScreen(viewModel: MainViewModel) {
 
                     Spacer(modifier = Modifier.height(8.dp))
 
-                    // Explanation Note regarding Physical TTP223 Hardware Sensitivity
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -177,13 +278,64 @@ fun SettingsScreen(viewModel: MainViewModel) {
                         Icon(Icons.Default.Info, contentDescription = null, tint = AmberWarning, modifier = Modifier.size(20.dp))
                         Spacer(modifier = Modifier.width(8.dp))
                         Text(
-                            text = "Note: Software thresholds tune debouncing and press timers. Physical capacitive sensitivity is determined by the hardware capacitor (C3) on your TTP223 module.",
+                            text = "Note: Software thresholds tune debouncing and press timers. Physical capacitive sensitivity is determined by capacitor C3 on your TTP223 module.",
                             style = MaterialTheme.typography.bodyMedium,
                             color = TextSecondary
                         )
                     }
                 }
             }
+
+            // OEM Background Help
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(containerColor = SlateCard),
+                shape = RoundedCornerShape(16.dp)
+            ) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Text(
+                        text = "OEM Background Optimization Notice",
+                        style = MaterialTheme.typography.titleMedium,
+                        color = TextPrimary,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Spacer(modifier = Modifier.height(6.dp))
+                    Text(
+                        text = "On devices with custom Android skins (Xiaomi MIUI/HyperOS, Oppo ColorOS, Vivo Funtouch, Samsung OneUI):\n\n" +
+                                "1. Set CareBuddy's App Battery usage to 'Unrestricted'.\n" +
+                                "2. Enable 'Autostart' or 'Allow background activity' in App Info.\n" +
+                                "3. Lock CareBuddy in the Recent Apps overview so the BLE connection remains continuous when screen turns off.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = TextSecondary
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun DiagnosticItem(title: String, granted: Boolean) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(title, style = MaterialTheme.typography.bodyMedium, color = TextPrimary)
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Icon(
+                imageVector = if (granted) Icons.Default.CheckCircle else Icons.Default.Error,
+                contentDescription = null,
+                tint = if (granted) GreenSuccess else RedEmergency,
+                modifier = Modifier.size(18.dp)
+            )
+            Spacer(modifier = Modifier.width(6.dp))
+            Text(
+                if (granted) "OK" else "Missing",
+                style = MaterialTheme.typography.bodySmall,
+                color = if (granted) GreenSuccess else RedEmergency,
+                fontWeight = FontWeight.Bold
+            )
         }
     }
 }
