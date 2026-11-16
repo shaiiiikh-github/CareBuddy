@@ -152,6 +152,8 @@ All commits in repository history (obtained via `git log --reverse`):
 | `c7f6672` | shaiiiikh-github | 2026-11-16 | `style(ui): redesign SOS emergency alert with high-contrast calm breathing indicators` | Phase 14: SOS Emergency Modal Redesign |
 | `54217b8` | shaiiiikh-github | 2026-11-16 | `style(ui): redesign settings and diagnostics with iOS inset grouped tables` | Phase 14: Settings & Diagnostics Redesign |
 | `a97fcb2` | shaiiiikh-github | 2026-11-16 | `style(ui): add Compose preview matrix for light and dark themes` | Phase 14: UI Previews & Theme Verification |
+| `ef9c146` | shaiiiikh-github | 2026-11-16 | `docs(ui): add UI design system guide, audit transformations, and status update` | Phase 14: Design System Documentation |
+| `7e6714b` | shaiiiikh-github | 2026-11-16 | `style(ui): update bottom navigation bar to dark frosted capsule for high contrast` | Phase 14: Floating Tab Bar Contrast Optimization |
 
 ---
 
