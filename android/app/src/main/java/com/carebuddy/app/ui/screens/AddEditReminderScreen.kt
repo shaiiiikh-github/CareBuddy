@@ -1,35 +1,37 @@
 package com.carebuddy.app.ui.screens
 
-import android.app.TimePickerDialog
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.AccessTime
-import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.outlined.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.carebuddy.app.data.Reminder
 import com.carebuddy.app.data.RepeatOption
-import com.carebuddy.app.ui.theme.*
+import com.carebuddy.app.ui.components.*
+import com.carebuddy.app.ui.theme.CareBuddyTheme
+import com.carebuddy.app.ui.theme.pressScale
 import com.carebuddy.app.viewmodel.MainViewModel
-import java.util.Calendar
-import java.util.Locale
+import java.util.*
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AddEditReminderScreen(
     viewModel: MainViewModel,
     existingReminderId: String?,
     onNavigateBack: () -> Unit
 ) {
-    val context = LocalContext.current
     val reminders by viewModel.reminders.collectAsState()
     val existing = reminders.find { it.id == existingReminderId }
 
@@ -37,8 +39,8 @@ fun AddEditReminderScreen(
     var category by remember { mutableStateOf(existing?.category ?: "Medication") }
     var repeat by remember { mutableStateOf(existing?.repeat ?: RepeatOption.DAILY) }
 
-    var hour by remember { mutableStateOf(existing?.minutesOfDay?.div(60) ?: 10) }
-    var minute by remember { mutableStateOf(existing?.minutesOfDay?.rem(60) ?: 0) }
+    var hour by remember { mutableIntStateOf(existing?.minutesOfDay?.div(60) ?: 9) }
+    var minute by remember { mutableIntStateOf(existing?.minutesOfDay?.rem(60) ?: 0) }
     var validationError by remember { mutableStateOf<String?>(null) }
 
     val formattedTime = remember(hour, minute) {
@@ -52,174 +54,242 @@ fun AddEditReminderScreen(
     }
 
     val categories = listOf("Medication", "Water", "Activity", "Custom")
+    val repeatOptions = listOf(RepeatOption.DAILY, RepeatOption.WEEKDAYS, RepeatOption.CUSTOM)
 
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = { Text(if (existing == null) "Add Reminder" else "Edit Reminder", color = TextPrimary, fontWeight = FontWeight.Bold) },
-                navigationIcon = {
-                    IconButton(onClick = onNavigateBack) {
-                        Icon(Icons.Default.ArrowBack, contentDescription = "Back", tint = TextPrimary)
-                    }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(containerColor = SlateDark)
+    val colors = CareBuddyTheme.colors
+
+    LargeTitleScaffold(
+        title = if (existing == null) "New Reminder" else "Edit Reminder",
+        subtitle = "Acoustic chimes and eye alerts on CareBuddy",
+        trailingAction = {
+            CapsuleButton(
+                text = "Cancel",
+                onClick = onNavigateBack,
+                style = ButtonStyle.Plain,
+                minHeight = 36.dp
             )
-        },
-        containerColor = SlateDark
-    ) { paddingValues ->
+        }
+    ) {
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(paddingValues)
-                .padding(20.dp),
+                .verticalScroll(rememberScrollState())
+                .padding(bottom = 60.dp),
             verticalArrangement = Arrangement.spacedBy(20.dp)
         ) {
+            // Native-feeling Time Picker Glass Card
+            SectionHeader(text = "Schedule Time")
+            GlassCard(modifier = Modifier.fillMaxWidth()) {
+                Column(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    Text(
+                        text = formattedTime,
+                        style = MaterialTheme.typography.displayLarge.copy(
+                            fontSize = 42.sp,
+                            fontWeight = FontWeight.Bold
+                        ),
+                        color = colors.accent
+                    )
+
+                    Spacer(modifier = Modifier.height(16.dp))
+
+                    // Hour and Minute Controls
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceEvenly,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        TimeStepper(
+                            label = "Hour",
+                            value = if (hour % 12 == 0) 12 else hour % 12,
+                            onIncrement = { hour = (hour + 1) % 24 },
+                            onDecrement = { hour = if (hour == 0) 23 else hour - 1 }
+                        )
+
+                        TimeStepper(
+                            label = "Minute",
+                            value = minute,
+                            onIncrement = { minute = (minute + 5) % 60 },
+                            onDecrement = { minute = if (minute < 5) 55 else minute - 5 }
+                        )
+
+                        // AM/PM Toggle
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            Text(
+                                text = "Period",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = colors.textSecondary
+                            )
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Row(
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(fullPillRadius))
+                                    .background(colors.switchTrackOff)
+                                    .padding(2.dp)
+                            ) {
+                                val isAm = hour < 12
+                                Box(
+                                    modifier = Modifier
+                                        .clip(RoundedCornerShape(fullPillRadius))
+                                        .background(if (isAm) colors.accent else Color.Transparent)
+                                        .clickable { if (!isAm) hour -= 12 }
+                                        .padding(horizontal = 12.dp, vertical = 6.dp)
+                                ) {
+                                    Text(
+                                        text = "AM",
+                                        style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
+                                        color = if (isAm) Color.White else colors.textSecondary
+                                    )
+                                }
+                                Box(
+                                    modifier = Modifier
+                                        .clip(RoundedCornerShape(fullPillRadius))
+                                        .background(if (!isAm) colors.accent else Color.Transparent)
+                                        .clickable { if (isAm) hour += 12 }
+                                        .padding(horizontal = 12.dp, vertical = 6.dp)
+                                ) {
+                                    Text(
+                                        text = "PM",
+                                        style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
+                                        color = if (!isAm) Color.White else colors.textSecondary
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
             // Title Input
-            OutlinedTextField(
+            SectionHeader(text = "Reminder Details")
+            IosTextField(
                 value = title,
                 onValueChange = {
                     title = it
                     validationError = null
                 },
-                label = { Text("Reminder Title", color = TextSecondary) },
-                placeholder = { Text("e.g. Take Blood Pressure Pill") },
-                singleLine = true,
-                modifier = Modifier.fillMaxWidth(),
-                colors = OutlinedTextFieldDefaults.colors(
-                    focusedBorderColor = TealLight,
-                    unfocusedBorderColor = SlateCardBorder,
-                    focusedTextColor = TextPrimary,
-                    unfocusedTextColor = TextPrimary
-                ),
-                shape = RoundedCornerShape(12.dp)
+                placeholder = "Title (e.g. Heart Medication)",
+                leadingIcon = Icons.Outlined.Edit,
+                errorMessage = validationError
             )
 
-            // Category Selector
-            Text("Category", style = MaterialTheme.typography.titleLarge, color = TextSecondary)
+            // Category Chips
+            SectionHeader(text = "Category")
             Row(
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                modifier = Modifier.fillMaxWidth()
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 categories.forEach { cat ->
-                    FilterChip(
-                        selected = category == cat,
-                        onClick = { category = cat },
-                        label = { Text(cat) },
-                        colors = FilterChipDefaults.filterChipColors(
-                            selectedContainerColor = TealAccent,
-                            selectedLabelColor = SlateDark,
-                            containerColor = SlateCard,
-                            labelColor = TextPrimary
+                    val isSelected = category.equals(cat, ignoreCase = true)
+                    Box(
+                        modifier = Modifier
+                            .weight(1f)
+                            .clip(RoundedCornerShape(fullPillRadius))
+                            .background(if (isSelected) colors.accent else colors.switchTrackOff.copy(alpha = 0.6f))
+                            .pressScale(onClick = { category = cat })
+                            .padding(vertical = 10.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = cat,
+                            style = MaterialTheme.typography.bodySmall.copy(
+                                fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Normal
+                            ),
+                            color = if (isSelected) Color.White else colors.textPrimary
                         )
-                    )
-                }
-            }
-
-            // Time Selector Card
-            Text("Time", style = MaterialTheme.typography.titleLarge, color = TextSecondary)
-            Card(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clickable {
-                        TimePickerDialog(
-                            context,
-                            { _, h, m ->
-                                hour = h
-                                minute = m
-                            },
-                            hour,
-                            minute,
-                            false
-                        ).show()
-                    },
-                colors = CardDefaults.cardColors(containerColor = SlateCard),
-                shape = RoundedCornerShape(14.dp)
-            ) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(20.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(Icons.Default.AccessTime, contentDescription = null, tint = TealLight)
-                        Spacer(modifier = Modifier.width(12.dp))
-                        Text("Scheduled Time", style = MaterialTheme.typography.bodyLarge, color = TextPrimary)
                     }
-                    Text(
-                        text = formattedTime,
-                        style = MaterialTheme.typography.headlineMedium,
-                        color = TealGlow,
-                        fontWeight = FontWeight.Bold
-                    )
                 }
             }
 
-            // Repeat Option Selector
-            Text("Repeat Schedule", style = MaterialTheme.typography.titleLarge, color = TextSecondary)
-            Row(
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                RepeatOption.values().forEach { opt ->
-                    FilterChip(
-                        selected = repeat == opt,
-                        onClick = { repeat = opt },
-                        label = { Text(opt.name) },
-                        colors = FilterChipDefaults.filterChipColors(
-                            selectedContainerColor = TealAccent,
-                            selectedLabelColor = SlateDark,
-                            containerColor = SlateCard,
-                            labelColor = TextPrimary
-                        )
-                    )
-                }
-            }
+            // Repeat Option
+            SectionHeader(text = "Repeat Schedule")
+            val selectedRepeatIndex = repeatOptions.indexOf(repeat).coerceAtLeast(0)
+            SegmentedControl(
+                items = repeatOptions,
+                selectedIndex = selectedRepeatIndex,
+                onItemSelected = { index -> repeat = repeatOptions[index] },
+                itemLabel = { it.name.lowercase().replaceFirstChar { c -> c.uppercase() } }
+            )
 
-            if (validationError != null) {
-                Text(
-                    text = validationError!!,
-                    color = RedEmergency,
-                    style = MaterialTheme.typography.bodyMedium
-                )
-            }
+            Spacer(modifier = Modifier.height(10.dp))
 
-            Spacer(modifier = Modifier.weight(1f))
-
-            // Action Buttons
-            Button(
+            // Primary Action
+            CapsuleButton(
+                text = if (existing == null) "Create Reminder" else "Save Changes",
                 onClick = {
                     if (title.isBlank()) {
-                        validationError = "Please enter a valid title for the reminder."
-                        return@Button
+                        validationError = "Please enter a reminder title"
+                        return@CapsuleButton
                     }
-
-                    val minutesOfDay = hour * 60 + minute
-                    val newReminder = Reminder(
-                        id = existing?.id ?: System.currentTimeMillis().toString().takeLast(8),
+                    val reminder = Reminder(
+                        id = existing?.id ?: UUID.randomUUID().toString(),
                         title = title.trim(),
                         time = formattedTime,
-                        minutesOfDay = minutesOfDay,
+                        minutesOfDay = hour * 60 + minute,
                         repeat = repeat,
-                        enabled = true,
-                        category = category
+                        category = category,
+                        enabled = true
                     )
-
-                    if (existing == null) {
-                        viewModel.addReminder(newReminder)
+                    if (existing != null) {
+                        viewModel.updateReminder(reminder)
                     } else {
-                        viewModel.updateReminder(newReminder)
+                        viewModel.addReminder(reminder)
                     }
                     onNavigateBack()
                 },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(54.dp),
-                colors = ButtonDefaults.buttonColors(containerColor = TealLight),
-                shape = RoundedCornerShape(14.dp)
-            ) {
-                Text("Save Reminder", color = SlateDark, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+                style = ButtonStyle.Filled,
+                modifier = Modifier.fillMaxWidth()
+            )
+        }
+    }
+}
+
+@Composable
+private fun TimeStepper(
+    label: String,
+    value: Int,
+    onIncrement: () -> Unit,
+    onDecrement: () -> Unit
+) {
+    val colors = CareBuddyTheme.colors
+
+    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+        Text(
+            text = label,
+            style = MaterialTheme.typography.labelSmall,
+            color = colors.textSecondary
+        )
+        Spacer(modifier = Modifier.height(4.dp))
+        Row(
+            modifier = Modifier
+                .clip(RoundedCornerShape(fullPillRadius))
+                .background(colors.switchTrackOff)
+                .padding(horizontal = 4.dp, vertical = 2.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            IconButton(onClick = onDecrement, modifier = Modifier.size(32.dp)) {
+                Icon(
+                    imageVector = Icons.Outlined.Remove,
+                    contentDescription = "Decrease $label",
+                    tint = colors.textPrimary,
+                    modifier = Modifier.size(16.dp)
+                )
+            }
+            Text(
+                text = String.format(Locale.getDefault(), "%02d", value),
+                style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                color = colors.textPrimary,
+                modifier = Modifier.padding(horizontal = 8.dp)
+            )
+            IconButton(onClick = onIncrement, modifier = Modifier.size(32.dp)) {
+                Icon(
+                    imageVector = Icons.Outlined.Add,
+                    contentDescription = "Increase $label",
+                    tint = colors.textPrimary,
+                    modifier = Modifier.size(16.dp)
+                )
             }
         }
     }
