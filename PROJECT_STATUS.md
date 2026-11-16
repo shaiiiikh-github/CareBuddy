@@ -2,8 +2,8 @@
 
 ## 1. Snapshot
 * **Date Analyzed**: 16 November 2026
-* **Repository Branch**: `ui/glass-redesign` (base: `fix/sos-sms-and-background`)
-* **Published Release**: `v1.0.0` (tagged on GitHub, attached asset `CareBuddy-v1.0.0.apk`)
+* **Repository Branch**: `main` (merged from `ui/glass-redesign`)
+* **Published Release**: `v1.1.0` (tagged on GitHub, attached asset `CareBuddy-v1.1.0.apk`)
 * **Overall Completion Estimate**: **98%** — Both ESP32 firmware and Android companion app have fully functioning UI, BLE communication, reminder scheduling, acoustic escalation, and emergency SOS pipeline. The critical P0/P1 safety and architecture gaps are resolved, and the entire Android UI has been redesigned with the iOS 26 "Liquid Glass" design system: custom glass surfaces, floating tab bar, inset grouped tables, tactile spring physics, calm human copy, zero emojis, and complete light/dark theme support.
 
 ---
