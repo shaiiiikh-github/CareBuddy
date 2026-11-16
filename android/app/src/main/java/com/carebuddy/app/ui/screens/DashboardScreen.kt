@@ -34,6 +34,7 @@ fun DashboardScreen(
     val connectionState by viewModel.connectionState.collectAsState()
     val deviceName by viewModel.deviceName.collectAsState()
     val reminders by viewModel.reminders.collectAsState()
+    val contacts by viewModel.emergencyContacts.collectAsState()
 
     val nextReminder = reminders.firstOrNull { !it.isAcknowledgedToday && it.enabled }
 
@@ -79,6 +80,46 @@ fun DashboardScreen(
         }
 
         Spacer(modifier = Modifier.height(16.dp))
+
+        // Warning banner if no contacts are configured
+        if (contacts.isEmpty()) {
+            Card(
+                onClick = onNavigateToEmergency,
+                modifier = Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(containerColor = RedEmergencyDark.copy(alpha = 0.35f)),
+                shape = RoundedCornerShape(16.dp),
+                border = BorderStroke(1.dp, RedEmergency)
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(14.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(
+                        Icons.Default.Warning,
+                        contentDescription = null,
+                        tint = RedEmergency,
+                        modifier = Modifier.size(32.dp)
+                    )
+                    Spacer(modifier = Modifier.width(12.dp))
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = "No Emergency Contact Added!",
+                            style = MaterialTheme.typography.titleMedium,
+                            color = TextPrimary,
+                            fontWeight = FontWeight.Bold
+                        )
+                        Text(
+                            text = "Tap here to add contact so SOS alerts can reach your family.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = TextSecondary
+                        )
+                    }
+                }
+            }
+            Spacer(modifier = Modifier.height(16.dp))
+        }
 
         // Quick Test SOS Banner
         Card(

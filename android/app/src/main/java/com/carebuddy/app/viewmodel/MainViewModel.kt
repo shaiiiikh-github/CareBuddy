@@ -5,8 +5,7 @@ import android.content.Intent
 import android.net.Uri
 import android.os.Handler
 import android.os.Looper
-import android.telephony.SmsManager
-import android.widget.Toast
+import android.util.Log
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.carebuddy.app.ble.BleConnectionState
@@ -14,6 +13,9 @@ import com.carebuddy.app.ble.CareBuddyBleManager
 import com.carebuddy.app.data.CareBuddyRepository
 import com.carebuddy.app.data.EmergencyContact
 import com.carebuddy.app.data.Reminder
+import com.carebuddy.app.sos.DiagnosticsInfo
+import com.carebuddy.app.sos.SosDispatchState
+import com.carebuddy.app.sos.SosDispatcher
 import com.google.gson.JsonObject
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -34,9 +36,11 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     private val repository = CareBuddyRepository(application)
     val bleManager = CareBuddyBleManager(application)
+    val sosDispatcher = SosDispatcher(application, repository)
 
     val connectionState: StateFlow<BleConnectionState> = bleManager.connectionState
     val deviceName: StateFlow<String?> = bleManager.deviceName
+    val sosDispatchState: StateFlow<SosDispatchState> = sosDispatcher.dispatchState
 
     private val _reminders = MutableStateFlow<List<Reminder>>(emptyList())
     val reminders: StateFlow<List<Reminder>> = _reminders
@@ -44,13 +48,14 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val _emergencyContacts = MutableStateFlow<List<EmergencyContact>>(emptyList())
     val emergencyContacts: StateFlow<List<EmergencyContact>> = _emergencyContacts
 
-    private val _sosAlertState = MutableStateFlow(SosAlertState())
-    val sosAlertState: StateFlow<SosAlertState> = _sosAlertState
-
     private val _sosCustomMessage = MutableStateFlow("")
     val sosCustomMessage: StateFlow<String> = _sosCustomMessage
 
     private val mainHandler = Handler(Looper.getMainLooper())
+
+    companion object {
+        private const val TAG = "MainViewModel"
+    }
 
     init {
         loadData()
@@ -68,10 +73,10 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch {
             connectionState.collect { state ->
                 if (state == BleConnectionState.CONNECTED) {
-                    delay(200)
-                    syncTimeToDevice()
-                    delay(150)
-                    syncAllRemindersToDevice()
+                    mainHandler.postDelayed({
+                        syncTimeToDevice()
+                        syncAllRemindersToDevice()
+                    }, 1000)
                 }
             }
         }
@@ -84,12 +89,10 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 when (type) {
                     "SOS" -> {
                         val status = msg.get("status")?.asString ?: ""
-                        if (status == "TRIGGERED") {
-                            triggerSosAlert(isTest = false)
-                        } else if (status == "TEST") {
-                            triggerSosAlert(isTest = true)
-                        } else if (status == "CANCELLED") {
-                            dismissSosAlert()
+                        when (status) {
+                            "TRIGGERED" -> triggerSosAlert(isTest = false)
+                            "TEST" -> triggerSosAlert(isTest = true)
+                            "CANCELLED" -> dismissSosAlert()
                         }
                     }
                     "REMINDER_ACK" -> {
@@ -113,27 +116,19 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     fun addReminder(reminder: Reminder) {
         val updated = _reminders.value.toMutableList()
-        updated.add(reminder)
+        val index = updated.indexOfFirst { it.id == reminder.id }
+        if (index != -1) {
+            updated[index] = reminder
+        } else {
+            updated.add(reminder)
+        }
         _reminders.value = updated
         repository.saveReminders(updated)
-
-        viewModelScope.launch {
-            syncTimeToDevice()
-            delay(120)
-            sendReminderToDevice(reminder)
-        }
+        sendReminderToDevice(reminder)
     }
 
     fun updateReminder(reminder: Reminder) {
-        val updated = _reminders.value.map { if (it.id == reminder.id) reminder else it }
-        _reminders.value = updated
-        repository.saveReminders(updated)
-
-        viewModelScope.launch {
-            syncTimeToDevice()
-            delay(120)
-            sendReminderToDevice(reminder)
-        }
+        addReminder(reminder)
     }
 
     fun deleteReminder(id: String) {
@@ -148,9 +143,11 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         bleManager.sendJson(json)
     }
 
-    fun toggleReminderEnabled(id: String, enabled: Boolean) {
-        val reminder = _reminders.value.find { it.id == id } ?: return
-        updateReminder(reminder.copy(enabled = enabled))
+    fun toggleReminderEnabled(id: String, enabled: Boolean? = null) {
+        val reminder = _reminders.value.firstOrNull { it.id == id } ?: return
+        val newEnabled = enabled ?: !reminder.enabled
+        val toggled = reminder.copy(enabled = newEnabled)
+        addReminder(toggled)
     }
 
     private fun sendReminderToDevice(reminder: Reminder) {
@@ -183,8 +180,13 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun updateEmergencyContacts(contacts: List<EmergencyContact>) {
-        _emergencyContacts.value = contacts
-        repository.saveEmergencyContacts(contacts)
+        val normalized = if (contacts.isNotEmpty() && !contacts.any { it.isPrimary }) {
+            contacts.mapIndexed { index, c -> if (index == 0) c.copy(isPrimary = true) else c }
+        } else {
+            contacts
+        }
+        _emergencyContacts.value = normalized
+        repository.saveEmergencyContacts(normalized)
     }
 
     fun saveSosCustomMessage(msg: String) {
@@ -193,24 +195,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun triggerSosAlert(isTest: Boolean) {
-        val primaryContact = _emergencyContacts.value.firstOrNull { it.isPrimary }
-            ?: _emergencyContacts.value.firstOrNull()
-            ?: EmergencyContact("def", "Primary Contact", "911")
-
-        _sosAlertState.value = SosAlertState(
-            isTriggered = true,
-            isTestMode = isTest,
-            contactName = primaryContact.name,
-            contactPhone = primaryContact.phoneNumber,
-            smsStatus = "IDLE",
-            callStatus = "IDLE"
-        )
-
-        // Automatically send SMS and dial call when hardware SOS is triggered in real life
-        if (!isTest && primaryContact.phoneNumber.isNotBlank()) {
-            sendSosSmsDirectly()
-            initiatePhoneCall(primaryContact.phoneNumber)
-        }
+        sosDispatcher.dispatchSos(isTest)
     }
 
     fun testSosFromApp() {
@@ -222,28 +207,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun dismissSosAlert() {
-        _sosAlertState.value = SosAlertState(isTriggered = false)
-    }
-
-    fun sendSosSmsDirectly() {
-        val state = _sosAlertState.value
-        if (state.contactPhone.isEmpty()) return
-
-        try {
-            val smsManager: SmsManager = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S) {
-                getApplication<Application>().getSystemService(SmsManager::class.java)
-            } else {
-                @Suppress("DEPRECATION")
-                SmsManager.getDefault()
-            }
-            smsManager.sendTextMessage(state.contactPhone, null, _sosCustomMessage.value, null, null)
-            _sosAlertState.value = state.copy(smsStatus = "SENT")
-            Toast.makeText(getApplication(), "SOS SMS Sent successfully!", Toast.LENGTH_SHORT).show()
-        } catch (e: Exception) {
-            _sosAlertState.value = state.copy(smsStatus = "FAILED")
-            // Fallback to SMS Intent chooser if direct sending fails
-            openSmsAppFallback(state.contactPhone, _sosCustomMessage.value)
-        }
+        sosDispatcher.dismissSosAlert()
     }
 
     fun openSmsAppFallback(phoneNumber: String, text: String) {
@@ -254,9 +218,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
         try {
             getApplication<Application>().startActivity(intent)
-            _sosAlertState.value = _sosAlertState.value.copy(smsStatus = "INITIATED")
         } catch (e: Exception) {
-            _sosAlertState.value = _sosAlertState.value.copy(smsStatus = "FAILED")
+            Log.e(TAG, "Failed to launch SMS intent chooser", e)
         }
     }
 
@@ -267,24 +230,31 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
         try {
             getApplication<Application>().startActivity(intent)
-            _sosAlertState.value = _sosAlertState.value.copy(callStatus = "INITIATED")
         } catch (e: Exception) {
+            Log.w(TAG, "ACTION_CALL failed, falling back to ACTION_DIAL", e)
             val dialIntent = Intent(Intent.ACTION_DIAL).apply {
                 data = Uri.parse("tel:$phoneNumber")
                 addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
             }
             try {
                 getApplication<Application>().startActivity(dialIntent)
-                _sosAlertState.value = _sosAlertState.value.copy(callStatus = "INITIATED")
             } catch (ex: Exception) {
-                _sosAlertState.value = _sosAlertState.value.copy(callStatus = "FAILED")
+                Log.e(TAG, "ACTION_DIAL failed to launch", ex)
             }
         }
     }
 
+    fun sendTestSmsToContact(contact: EmergencyContact, onResult: (Boolean, String) -> Unit) {
+        sosDispatcher.sendTestSmsToContact(contact, onResult)
+    }
+
+    fun getDiagnosticsInfo(): DiagnosticsInfo {
+        return sosDispatcher.getDiagnosticsInfo(connectionState.value.name)
+    }
+
     fun syncTimeToDevice() {
-        val calendar = Calendar.getInstance()
-        val minutesOfDay = calendar.get(Calendar.HOUR_OF_DAY) * 60 + calendar.get(Calendar.MINUTE)
+        val cal = Calendar.getInstance()
+        val minutesOfDay = cal.get(Calendar.HOUR_OF_DAY) * 60 + cal.get(Calendar.MINUTE)
         val epochSeconds = System.currentTimeMillis() / 1000
 
         val json = JsonObject().apply {
