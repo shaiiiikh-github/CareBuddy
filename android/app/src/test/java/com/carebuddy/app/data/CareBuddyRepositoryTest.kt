@@ -84,6 +84,17 @@ class CareBuddyRepositoryTest {
 
         assertTrue(result.isEmpty())
     }
+
+    @Test
+    fun testPhoneValidationLogic() {
+        assertTrue(com.carebuddy.app.ui.screens.isValidPhoneNumber("+15551234567"))
+        assertTrue(com.carebuddy.app.ui.screens.isValidPhoneNumber("(555) 123-4567"))
+        assertTrue(com.carebuddy.app.ui.screens.isValidPhoneNumber("+44 7911 123456"))
+
+        assertFalse(com.carebuddy.app.ui.screens.isValidPhoneNumber("123")) // Too short
+        assertFalse(com.carebuddy.app.ui.screens.isValidPhoneNumber("abcdefghij")) // Non-digits
+        assertFalse(com.carebuddy.app.ui.screens.isValidPhoneNumber("")) // Blank
+    }
 }
 
 /**
