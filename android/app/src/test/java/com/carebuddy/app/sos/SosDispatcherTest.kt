@@ -111,4 +111,44 @@ class SosDispatcherTest {
         assertTrue(timestamp2 - timestamp1 < 60_000L) // suppressed
         assertFalse(timestamp3 - timestamp1 < 60_000L) // allowed
     }
+
+    @Test
+    fun testMultipartSegmentation() {
+        // A short message stays in 1 part
+        val shortMsg = "Short SOS notification"
+        val singlePart = fakeSender.divideMessage(shortMsg)
+        assertEquals(1, singlePart.size)
+
+        // A long message (>160 chars) splits into multiple chunks
+        val longMsg = "A".repeat(250)
+        val multiPart = fakeSender.divideMessage(longMsg)
+        assertEquals(2, multiPart.size)
+        assertEquals(153, multiPart[0].length)
+        assertEquals(97, multiPart[1].length)
+    }
+
+    @Test
+    fun testFakeSenderMultipartTransmission() {
+        val dest = "+15551234567"
+        val parts = listOf("Part 1 of SOS", "Part 2 of SOS")
+        fakeSender.sendMultipart(dest, parts, null, null)
+
+        assertEquals(1, fakeSender.sentMessages.size)
+        val sent = fakeSender.sentMessages.first()
+        assertEquals(dest, sent.destination)
+        assertEquals(2, sent.parts.size)
+    }
+
+    @Test
+    fun testFakeSenderThrowsExceptionHandling() {
+        fakeSender.shouldThrowException = true
+        var exceptionCaught = false
+        try {
+            fakeSender.sendMultipart("+15551234567", listOf("Test"), null, null)
+        } catch (e: Exception) {
+            exceptionCaught = true
+            assertTrue(e.message!!.contains("Radio / RIL"))
+        }
+        assertTrue(exceptionCaught)
+    }
 }
