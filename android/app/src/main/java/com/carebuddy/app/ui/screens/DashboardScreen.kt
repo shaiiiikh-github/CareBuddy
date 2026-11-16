@@ -121,6 +121,46 @@ fun DashboardScreen(
             Spacer(modifier = Modifier.height(16.dp))
         }
 
+        val ringingReminder by viewModel.ringingReminder.collectAsState()
+
+        if (ringingReminder != null) {
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(containerColor = TealAccent.copy(alpha = 0.25f)),
+                shape = RoundedCornerShape(16.dp),
+                border = BorderStroke(2.dp, TealLight)
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(16.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(
+                        Icons.Default.NotificationsActive,
+                        contentDescription = null,
+                        tint = TealLight,
+                        modifier = Modifier.size(36.dp)
+                    )
+                    Spacer(modifier = Modifier.width(12.dp))
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = "🔔 Reminder Ringing on Device!",
+                            style = MaterialTheme.typography.titleMedium,
+                            color = TealGlow,
+                            fontWeight = FontWeight.Bold
+                        )
+                        Text(
+                            text = "${ringingReminder!!.title} (${ringingReminder!!.time}). Tap sensor on CareBuddy to acknowledge.",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = TextPrimary
+                        )
+                    }
+                }
+            }
+            Spacer(modifier = Modifier.height(16.dp))
+        }
+
         // Quick Test SOS Banner
         Card(
             modifier = Modifier.fillMaxWidth(),
