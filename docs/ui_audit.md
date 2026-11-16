@@ -31,3 +31,17 @@ This audit reviews every existing UI screen and composable, identifying generic,
 ### 8. Theme, Tokens & Typography (`Theme.kt`, `Color.kt`, `Type.kt`)
 * **Palette** (`Color.kt`:5–20, `Theme.kt`:12–22): Locked to dark-only "slate and teal" palette typical of generic AI code generation; no light mode support; dynamic theming absent.
 * **Typography** (`Type.kt`:9–46): Default Android Roboto with zero letter-spacing adjustments, missing iOS-like Large Title (34sp) and human-centered caption hierarchy.
+
+---
+
+## Before / After Screen Transformations
+
+| Screen | Before (Material 3 Defaults & AI Look) | After (iOS 26 Liquid Glass) |
+|:---|:---|:---|
+| **Navigation** | Heavy bottom bar, opaque `SlateCard` background, stock pill indicator. | Floating glass capsule bar with spring pill highlight and edge-to-edge system insets. |
+| **Dashboard** | Generic "Welcome" subtitles, emoji banners (`🔔`, `🎉`), cards inside cards. | Large Title "Today", pulsing live connection pill, hero glass card with progress ring, quiet quick actions. |
+| **Reminders** | Teal Extended FAB, heavy rectangular bordered cards, platform alert dialogs. | Inset grouped list by time, StatusPill state badges, top capsule "Add" button, custom iOS switch. |
+| **Add/Edit** | Platform `TimePickerDialog` popup, outlined text fields with teal border. | Native-feeling stepper time card, segmented repeat control, capsule chips, IosTextField. |
+| **Contacts** | Red FAB, yellow warning border cards, Star/Delete buttons in row. | Grouped list with initials avatar, primary badge pill, tap-to-set-primary, glass modal sheet. |
+| **SOS Alert** | Centered Material card on scrim, flashing emoji headers (`🚨`), raw buttons. | Full-bleed solid crimson surface (`#140202`), calm breathing pulse icon, 56dp tactile targets. |
+| **Settings** | Nested cards with raw float sliders and debug-like diagnostics printout. | Inset grouped sections, discrete stepper values, StatusPill indicators, clean diagnostic rows. |
