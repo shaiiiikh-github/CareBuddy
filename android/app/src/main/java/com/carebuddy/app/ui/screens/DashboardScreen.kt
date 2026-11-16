@@ -1,29 +1,33 @@
 package com.carebuddy.app.ui.screens
 
-import androidx.compose.foundation.BorderStroke
+import androidx.compose.animation.core.*
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.*
-import androidx.compose.material3.*
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
-import androidx.compose.runtime.getValue
+import androidx.compose.material.icons.outlined.*
+import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-
+import androidx.compose.ui.unit.sp
 import com.carebuddy.app.ble.BleConnectionState
 import com.carebuddy.app.data.Reminder
-import com.carebuddy.app.ui.theme.*
+import com.carebuddy.app.ui.components.*
+import com.carebuddy.app.ui.theme.CareBuddyTheme
+import com.carebuddy.app.ui.theme.pressScale
 import com.carebuddy.app.viewmodel.MainViewModel
+import java.text.SimpleDateFormat
+import java.util.*
 
 @Composable
 fun DashboardScreen(
@@ -35,370 +39,353 @@ fun DashboardScreen(
     val deviceName by viewModel.deviceName.collectAsState()
     val reminders by viewModel.reminders.collectAsState()
     val contacts by viewModel.emergencyContacts.collectAsState()
+    val ringingReminder by viewModel.ringingReminder.collectAsState()
 
-    val nextReminder = reminders.firstOrNull { !it.isAcknowledgedToday && it.enabled }
-
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(SlateDark)
-            .padding(16.dp)
-    ) {
-        // App Bar Header
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(vertical = 12.dp),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Column {
-                Text(
-                    text = "CareBuddy",
-                    style = MaterialTheme.typography.headlineLarge,
-                    color = TextPrimary
-                )
-                Text(
-                    text = "Elderly Companion Assistant",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = TextSecondary
-                )
-            }
-
-            // Connection Badge
-            ConnectionBadge(
-                state = connectionState,
-                deviceName = deviceName,
-                onConnectClick = {
-                    if (connectionState == BleConnectionState.DISCONNECTED) {
-                        viewModel.connectDevice()
-                    } else {
-                        viewModel.disconnectDevice()
-                    }
-                }
-            )
-        }
-
-        Spacer(modifier = Modifier.height(16.dp))
-
-        // Warning banner if no contacts are configured
-        if (contacts.isEmpty()) {
-            Card(
-                onClick = onNavigateToEmergency,
-                modifier = Modifier.fillMaxWidth(),
-                colors = CardDefaults.cardColors(containerColor = RedEmergencyDark.copy(alpha = 0.35f)),
-                shape = RoundedCornerShape(16.dp),
-                border = BorderStroke(1.dp, RedEmergency)
-            ) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(14.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Icon(
-                        Icons.Default.Warning,
-                        contentDescription = null,
-                        tint = RedEmergency,
-                        modifier = Modifier.size(32.dp)
-                    )
-                    Spacer(modifier = Modifier.width(12.dp))
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(
-                            text = "No Emergency Contact Added!",
-                            style = MaterialTheme.typography.titleMedium,
-                            color = TextPrimary,
-                            fontWeight = FontWeight.Bold
-                        )
-                        Text(
-                            text = "Tap here to add contact so SOS alerts can reach your family.",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = TextSecondary
-                        )
-                    }
-                }
-            }
-            Spacer(modifier = Modifier.height(16.dp))
-        }
-
-        val ringingReminder by viewModel.ringingReminder.collectAsState()
-
-        if (ringingReminder != null) {
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                colors = CardDefaults.cardColors(containerColor = TealAccent.copy(alpha = 0.25f)),
-                shape = RoundedCornerShape(16.dp),
-                border = BorderStroke(2.dp, TealLight)
-            ) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(16.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Icon(
-                        Icons.Default.NotificationsActive,
-                        contentDescription = null,
-                        tint = TealLight,
-                        modifier = Modifier.size(36.dp)
-                    )
-                    Spacer(modifier = Modifier.width(12.dp))
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(
-                            text = "🔔 Reminder Ringing on Device!",
-                            style = MaterialTheme.typography.titleMedium,
-                            color = TealGlow,
-                            fontWeight = FontWeight.Bold
-                        )
-                        Text(
-                            text = "${ringingReminder!!.title} (${ringingReminder!!.time}). Tap sensor on CareBuddy to acknowledge.",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = TextPrimary
-                        )
-                    }
-                }
-            }
-            Spacer(modifier = Modifier.height(16.dp))
-        }
-
-        // Quick Test SOS Banner
-        Card(
-            modifier = Modifier.fillMaxWidth(),
-            colors = CardDefaults.cardColors(containerColor = SlateCard),
-            shape = RoundedCornerShape(16.dp),
-            border = BorderStroke(1.dp, SlateCardBorder)
-        ) {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(16.dp),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(
-                        imageVector = Icons.Default.Warning,
-                        contentDescription = "SOS Test",
-                        tint = RedEmergency,
-                        modifier = Modifier.size(32.dp)
-                    )
-                    Spacer(modifier = Modifier.width(12.dp))
-                    Column {
-                        Text(
-                            text = "Emergency SOS Test",
-                            style = MaterialTheme.typography.titleLarge,
-                            color = TextPrimary
-                        )
-                        Text(
-                            text = "Test ESP32 <-> App link safely",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = TextSecondary
-                        )
-                    }
-                }
-                Button(
-                    onClick = { viewModel.testSosFromApp() },
-                    colors = ButtonDefaults.buttonColors(containerColor = RedEmergencyDark),
-                    shape = RoundedCornerShape(12.dp)
-                ) {
-                    Text("Test SOS", color = TextPrimary, fontWeight = FontWeight.Bold)
-                }
-            }
-        }
-
-        Spacer(modifier = Modifier.height(16.dp))
-
-        // Next Reminder Section
-        Text(
-            text = "Next Reminder",
-            style = MaterialTheme.typography.titleLarge,
-            color = TextSecondary
-        )
-        Spacer(modifier = Modifier.height(8.dp))
-
-        if (nextReminder != null) {
-            NextReminderCard(reminder = nextReminder)
-        } else {
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                colors = CardDefaults.cardColors(containerColor = SlateCard),
-                shape = RoundedCornerShape(16.dp)
-            ) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(24.dp),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text(
-                        text = "🎉 All reminders for today are completed!",
-                        style = MaterialTheme.typography.bodyLarge,
-                        color = GreenSuccess
-                    )
-                }
-            }
-        }
-
-        Spacer(modifier = Modifier.height(20.dp))
-
-        // Today's Reminders List Header
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Text(
-                text = "Today's Schedule",
-                style = MaterialTheme.typography.titleLarge,
-                color = TextSecondary
-            )
-            TextButton(onClick = onNavigateToReminders) {
-                Text("Manage All", color = TealLight, fontWeight = FontWeight.SemiBold)
-            }
-        }
-
-        Spacer(modifier = Modifier.height(8.dp))
-
-        LazyColumn(
-            verticalArrangement = Arrangement.spacedBy(8.dp),
-            modifier = Modifier.weight(1f)
-        ) {
-            items(reminders) { reminder ->
-                ReminderScheduleItem(reminder = reminder)
-            }
-        }
+    val currentDate = remember {
+        val sdf = SimpleDateFormat("EEEE, MMMM d", Locale.getDefault())
+        sdf.format(Date())
     }
+
+    DashboardContent(
+        connectionState = connectionState,
+        deviceName = deviceName,
+        reminders = reminders,
+        contactsCount = contacts.size,
+        primaryContactName = contacts.firstOrNull { it.isPrimary }?.name ?: contacts.firstOrNull()?.name,
+        ringingReminder = ringingReminder,
+        currentDate = currentDate,
+        onConnectClick = {
+            if (connectionState == BleConnectionState.DISCONNECTED) {
+                viewModel.connectDevice()
+            } else {
+                viewModel.disconnectDevice()
+            }
+        },
+        onSyncTimeClick = { viewModel.syncTimeToDevice() },
+        onTestSosClick = { viewModel.testSosFromApp() },
+        onNavigateToReminders = onNavigateToReminders,
+        onNavigateToEmergency = onNavigateToEmergency
+    )
 }
 
 @Composable
-fun ConnectionBadge(
-    state: BleConnectionState,
+fun DashboardContent(
+    connectionState: BleConnectionState,
     deviceName: String?,
-    onConnectClick: () -> Unit
+    reminders: List<Reminder>,
+    contactsCount: Int,
+    primaryContactName: String?,
+    ringingReminder: Reminder?,
+    currentDate: String,
+    onConnectClick: () -> Unit,
+    onSyncTimeClick: () -> Unit,
+    onTestSosClick: () -> Unit,
+    onNavigateToReminders: () -> Unit,
+    onNavigateToEmergency: () -> Unit
 ) {
-    val (statusColor, statusText) = when (state) {
-        BleConnectionState.CONNECTED -> Pair(GreenSuccess, deviceName ?: "Connected")
-        BleConnectionState.CONNECTING -> Pair(AmberWarning, "Connecting..")
-        BleConnectionState.RECONNECTING -> Pair(AmberWarning, "Reconnecting..")
-        BleConnectionState.DISCONNECTED -> Pair(TextMuted, "Disconnected")
-    }
+    val colors = CareBuddyTheme.colors
 
-    Surface(
-        onClick = onConnectClick,
-        shape = RoundedCornerShape(20.dp),
-        color = SlateCard,
-        modifier = Modifier.border(1.dp, SlateCardBorder, RoundedCornerShape(20.dp))
-    ) {
-        Row(
-            modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Box(
-                modifier = Modifier
-                    .size(10.dp)
-                    .clip(CircleShape)
-                    .background(statusColor)
-            )
-            Spacer(modifier = Modifier.width(8.dp))
-            Text(
-                text = statusText,
-                style = MaterialTheme.typography.bodyMedium,
-                fontWeight = FontWeight.SemiBold,
-                color = TextPrimary
+    val activeReminders = reminders.filter { it.enabled }
+    val acknowledgedCount = activeReminders.count { it.isAcknowledgedToday }
+    val totalCount = activeReminders.size
+    val progress = if (totalCount > 0) acknowledgedCount.toFloat() / totalCount else 0f
+    val nextReminder = activeReminders.firstOrNull { !it.isAcknowledgedToday }
+
+    LargeTitleScaffold(
+        title = "Today",
+        subtitle = currentDate,
+        trailingAction = {
+            // Live Device State Pill with pulse indicator
+            LiveConnectionPill(
+                connectionState = connectionState,
+                deviceName = deviceName,
+                onClick = onConnectClick
             )
         }
-    }
-}
-
-@Composable
-fun NextReminderCard(reminder: Reminder) {
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(containerColor = SlateCard),
-        shape = RoundedCornerShape(16.dp),
-        border = BorderStroke(1.dp, TealLight)
     ) {
-        Row(
+        Column(
             modifier = Modifier
-                .fillMaxWidth()
-                .padding(20.dp),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
+                .fillMaxSize()
+                .verticalScroll(rememberScrollState())
+                .padding(bottom = 100.dp), // Clear floating tab bar
+            verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Surface(
-                    shape = CircleShape,
-                    color = TealAccent.copy(alpha = 0.2f),
-                    modifier = Modifier.size(48.dp)
+            // Ringing Reminder Alert (if device is ringing)
+            if (ringingReminder != null) {
+                GlassCard(
+                    modifier = Modifier.fillMaxWidth(),
+                    backgroundColor = colors.accentSubtle,
+                    onClick = onNavigateToReminders
                 ) {
-                    Box(contentAlignment = Alignment.Center) {
-                        Icon(
-                            imageVector = Icons.Default.NotificationsActive,
-                            contentDescription = null,
-                            tint = TealLight,
-                            modifier = Modifier.size(28.dp)
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(14.dp)
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(44.dp)
+                                .clip(CircleShape)
+                                .background(colors.accent),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = Icons.Outlined.NotificationsActive,
+                                contentDescription = null,
+                                tint = Color.White,
+                                modifier = Modifier.size(24.dp)
+                            )
+                        }
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = "Reminder ringing on CareBuddy",
+                                style = MaterialTheme.typography.headlineMedium.copy(fontSize = 16.sp),
+                                color = colors.textPrimary
+                            )
+                            Text(
+                                text = "${ringingReminder.title} at ${ringingReminder.time}. Tap the top touch sensor on your device to acknowledge.",
+                                style = MaterialTheme.typography.bodyMedium.copy(fontSize = 13.sp),
+                                color = colors.textSecondary
+                            )
+                        }
+                    }
+                }
+            }
+
+            // Warning if no emergency contacts exist
+            if (contactsCount == 0) {
+                GlassCard(
+                    modifier = Modifier.fillMaxWidth(),
+                    backgroundColor = colors.dangerSubtle,
+                    onClick = onNavigateToEmergency
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(14.dp)
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(44.dp)
+                                .clip(CircleShape)
+                                .background(colors.danger),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = Icons.Outlined.WarningAmber,
+                                contentDescription = null,
+                                tint = Color.White,
+                                modifier = Modifier.size(24.dp)
+                            )
+                        }
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = "No emergency contact configured",
+                                style = MaterialTheme.typography.headlineMedium.copy(fontSize = 16.sp),
+                                color = colors.textPrimary
+                            )
+                            Text(
+                                text = "Tap here to add a phone number so SOS alarms can notify your family.",
+                                style = MaterialTheme.typography.bodyMedium.copy(fontSize = 13.sp),
+                                color = colors.textSecondary
+                            )
+                        }
+                    }
+                }
+            }
+
+            // Hero Glass Card: Next Reminder & Daily Progress
+            GlassCard(
+                modifier = Modifier.fillMaxWidth(),
+                onClick = onNavigateToReminders
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = "Next reminder",
+                            style = MaterialTheme.typography.labelSmall.copy(
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Medium
+                            ),
+                            color = colors.textSecondary
+                        )
+                        Spacer(modifier = Modifier.height(4.dp))
+                        if (nextReminder != null) {
+                            Text(
+                                text = nextReminder.title,
+                                style = MaterialTheme.typography.titleLarge.copy(
+                                    fontSize = 20.sp,
+                                    fontWeight = FontWeight.SemiBold
+                                ),
+                                color = colors.textPrimary
+                            )
+                            Spacer(modifier = Modifier.height(2.dp))
+                            Text(
+                                text = nextReminder.time,
+                                style = MaterialTheme.typography.bodyLarge.copy(
+                                    fontSize = 17.sp,
+                                    fontWeight = FontWeight.Medium
+                                ),
+                                color = colors.accent
+                            )
+                        } else {
+                            Text(
+                                text = if (totalCount > 0) "All done for today" else "No reminders scheduled",
+                                style = MaterialTheme.typography.titleLarge.copy(
+                                    fontSize = 19.sp,
+                                    fontWeight = FontWeight.SemiBold
+                                ),
+                                color = colors.textPrimary
+                            )
+                            Spacer(modifier = Modifier.height(2.dp))
+                            Text(
+                                text = if (totalCount > 0) "$totalCount of $totalCount acknowledged" else "Tap to add your first reminder",
+                                style = MaterialTheme.typography.bodyMedium.copy(fontSize = 14.sp),
+                                color = colors.textSecondary
+                            )
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.width(16.dp))
+
+                    // Progress Ring
+                    ProgressRing(
+                        progress = progress,
+                        size = 62.dp,
+                        strokeWidth = 6.dp,
+                        ringColor = if (progress >= 1f && totalCount > 0) colors.success else colors.accent
+                    ) {
+                        Text(
+                            text = "$acknowledgedCount/$totalCount",
+                            style = MaterialTheme.typography.labelSmall.copy(
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.SemiBold
+                            ),
+                            color = colors.textPrimary
                         )
                     }
                 }
-                Spacer(modifier = Modifier.width(16.dp))
-                Column {
-                    Text(
-                        text = reminder.title,
-                        style = MaterialTheme.typography.titleLarge,
-                        color = TextPrimary,
-                        fontWeight = FontWeight.Bold
-                    )
-                    Text(
-                        text = reminder.category,
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = TextSecondary
-                    )
-                }
             }
-            Text(
-                text = reminder.time,
-                style = MaterialTheme.typography.headlineMedium,
-                color = TealGlow,
-                fontWeight = FontWeight.Bold
-            )
+
+            // Inset Grouped Section: Safety & Companion Status
+            SectionHeader(text = "Assistant Overview")
+            InsetGroupedList {
+                ListRow(
+                    title = "Emergency contact",
+                    subtitle = if (contactsCount > 0) primaryContactName ?: "$contactsCount contacts" else "Action needed",
+                    icon = Icons.Outlined.Shield,
+                    iconBackgroundColor = if (contactsCount > 0) colors.success else colors.warning,
+                    showChevron = true,
+                    onClick = onNavigateToEmergency,
+                    trailing = {
+                        StatusPill(
+                            label = if (contactsCount > 0) "Active" else "Empty",
+                            dotColor = if (contactsCount > 0) colors.success else colors.warning
+                        )
+                    }
+                )
+                ListRow(
+                    title = "Scheduled reminders",
+                    subtitle = "$totalCount active (${totalCount - acknowledgedCount} pending)",
+                    icon = Icons.Outlined.Alarm,
+                    iconBackgroundColor = colors.accent,
+                    showChevron = true,
+                    showDivider = false,
+                    onClick = onNavigateToReminders
+                )
+            }
+
+            // Quick Actions: Calm and Quiet
+            SectionHeader(text = "Quick Actions")
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                CapsuleButton(
+                    text = "Sync Clock",
+                    icon = Icons.Outlined.Schedule,
+                    onClick = onSyncTimeClick,
+                    style = ButtonStyle.Tinted,
+                    modifier = Modifier.weight(1f)
+                )
+
+                CapsuleButton(
+                    text = "Test SOS",
+                    icon = Icons.Outlined.Emergency,
+                    onClick = onTestSosClick,
+                    style = ButtonStyle.Tinted,
+                    modifier = Modifier.weight(1f)
+                )
+            }
         }
     }
 }
 
+/**
+ * Pill badge displaying live BLE connection state with a slow, pulsing status dot.
+ */
 @Composable
-fun ReminderScheduleItem(reminder: Reminder) {
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(containerColor = SlateCard),
-        shape = RoundedCornerShape(12.dp)
+fun LiveConnectionPill(
+    connectionState: BleConnectionState,
+    deviceName: String?,
+    onClick: () -> Unit
+) {
+    val colors = CareBuddyTheme.colors
+
+    val dotColor = when (connectionState) {
+        BleConnectionState.CONNECTED -> colors.success
+        BleConnectionState.CONNECTING,
+        BleConnectionState.RECONNECTING -> colors.warning
+        BleConnectionState.DISCONNECTED -> colors.tintGray
+    }
+
+    val stateLabel = when (connectionState) {
+        BleConnectionState.CONNECTED -> deviceName ?: "Connected"
+        BleConnectionState.CONNECTING -> "Connecting…"
+        BleConnectionState.RECONNECTING -> "Reconnecting…"
+        BleConnectionState.DISCONNECTED -> "Offline"
+    }
+
+    // Slow calm pulse for connecting / connected states
+    val infiniteTransition = rememberInfiniteTransition(label = "pulse_transition")
+    val pulseAlpha by infiniteTransition.animateFloat(
+        initialValue = 0.4f,
+        targetValue = 1.0f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(durationMillis = 1400, easing = FastOutSlowInEasing),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "pulse_alpha"
+    )
+
+    Row(
+        modifier = Modifier
+            .clip(RoundedCornerShape(fullPillRadius))
+            .background(colors.glassSurfaceSubtle)
+            .pressScale(onClick = onClick)
+            .padding(horizontal = 12.dp, vertical = 6.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(7.dp)
     ) {
-        Row(
+        Box(
             modifier = Modifier
-                .fillMaxWidth()
-                .padding(14.dp),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(
-                    imageVector = if (reminder.isAcknowledgedToday) Icons.Default.CheckCircle else Icons.Default.RadioButtonUnchecked,
-                    contentDescription = null,
-                    tint = if (reminder.isAcknowledgedToday) GreenSuccess else TextMuted,
-                    modifier = Modifier.size(24.dp)
+                .size(8.dp)
+                .clip(CircleShape)
+                .background(
+                    if (connectionState != BleConnectionState.DISCONNECTED) {
+                        dotColor.copy(alpha = pulseAlpha)
+                    } else dotColor
                 )
-                Spacer(modifier = Modifier.width(12.dp))
-                Text(
-                    text = reminder.title,
-                    style = MaterialTheme.typography.bodyLarge,
-                    color = if (reminder.isAcknowledgedToday) TextMuted else TextPrimary,
-                    fontWeight = FontWeight.SemiBold
-                )
-            }
-            Text(
-                text = reminder.time,
-                style = MaterialTheme.typography.bodyMedium,
-                color = TextSecondary
-            )
-        }
+        )
+        Text(
+            text = stateLabel,
+            style = MaterialTheme.typography.bodySmall.copy(
+                fontSize = 12.sp,
+                fontWeight = FontWeight.Medium
+            ),
+            color = colors.textPrimary
+        )
     }
 }
