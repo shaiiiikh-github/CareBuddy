@@ -1,30 +1,30 @@
 package com.carebuddy.app.ui.screens
 
-import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.Delete
-import androidx.compose.material.icons.filled.Edit
-import androidx.compose.material.icons.filled.Phone
-import androidx.compose.material.icons.filled.Star
-import androidx.compose.material.icons.filled.StarBorder
-import androidx.compose.material.icons.filled.Warning
+import androidx.compose.material.icons.outlined.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.carebuddy.app.data.EmergencyContact
-import com.carebuddy.app.ui.theme.*
+import com.carebuddy.app.ui.components.*
+import com.carebuddy.app.ui.theme.CareBuddyTheme
+import com.carebuddy.app.ui.theme.pressScale
 import com.carebuddy.app.viewmodel.MainViewModel
+import java.util.UUID
 
 fun isValidPhoneNumber(phone: String): Boolean {
     val digits = phone.filter { it.isDigit() }
@@ -37,101 +37,85 @@ fun isValidPhoneNumber(phone: String): Boolean {
 fun EmergencyContactScreen(viewModel: MainViewModel) {
     val contacts by viewModel.emergencyContacts.collectAsState()
 
-    var showDialog by remember { mutableStateOf(false) }
+    var showSheet by remember { mutableStateOf(false) }
     var editingContact by remember { mutableStateOf<EmergencyContact?>(null) }
     var inputName by remember { mutableStateOf("") }
     var inputPhone by remember { mutableStateOf("") }
+    var inputIsPrimary by remember { mutableStateOf(false) }
+    var validationError by remember { mutableStateOf<String?>(null) }
 
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = { Text("Emergency Contacts", color = TextPrimary, fontWeight = FontWeight.Bold) },
-                colors = TopAppBarDefaults.topAppBarColors(containerColor = SlateDark)
-            )
-        },
-        floatingActionButton = {
-            ExtendedFloatingActionButton(
+    val colors = CareBuddyTheme.colors
+
+    LargeTitleScaffold(
+        title = "Emergency",
+        subtitle = "Recipients of automated SOS alerts and phone calls",
+        trailingAction = {
+            CapsuleButton(
+                text = "Add",
+                icon = Icons.Outlined.Add,
                 onClick = {
                     editingContact = null
                     inputName = ""
                     inputPhone = ""
-                    showDialog = true
+                    inputIsPrimary = contacts.isEmpty()
+                    validationError = null
+                    showSheet = true
                 },
-                containerColor = RedEmergency,
-                contentColor = TextPrimary,
-                shape = RoundedCornerShape(16.dp)
-            ) {
-                Icon(Icons.Default.Add, contentDescription = "Add Contact")
-                Spacer(modifier = Modifier.width(8.dp))
-                Text("Add Contact", fontWeight = FontWeight.Bold)
-            }
-        },
-        containerColor = SlateDark
-    ) { paddingValues ->
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(paddingValues)
-                .padding(16.dp)
-        ) {
-            Text(
-                text = "Emergency Notification Receivers",
-                style = MaterialTheme.typography.titleLarge,
-                color = TextSecondary,
-                modifier = Modifier.padding(bottom = 12.dp)
+                style = ButtonStyle.Filled,
+                minHeight = 36.dp
             )
+        }
+    ) {
+        if (contacts.isEmpty()) {
+            EmptyState(
+                icon = Icons.Outlined.Shield,
+                title = "No emergency contacts",
+                description = "Add trusted family members or caregivers to receive SMS alerts and phone calls when SOS is triggered.",
+                actionText = "Add Contact",
+                onActionClick = {
+                    editingContact = null
+                    inputName = ""
+                    inputPhone = ""
+                    inputIsPrimary = true
+                    validationError = null
+                    showSheet = true
+                },
+                modifier = Modifier.fillMaxSize().padding(top = 40.dp)
+            )
+        } else {
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .verticalScroll(rememberScrollState())
+                    .padding(bottom = 100.dp),
+                verticalArrangement = Arrangement.spacedBy(16.dp)
+            ) {
+                SectionHeader(text = "Emergency Receivers (${contacts.size})")
 
-            if (contacts.isEmpty()) {
-                Card(
-                    modifier = Modifier.fillMaxWidth(),
-                    colors = CardDefaults.cardColors(containerColor = SlateCard),
-                    shape = RoundedCornerShape(16.dp),
-                    border = BorderStroke(1.dp, AmberWarning)
-                ) {
-                    Column(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(24.dp),
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        verticalArrangement = Arrangement.spacedBy(10.dp)
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Warning,
-                            contentDescription = null,
-                            tint = AmberWarning,
-                            modifier = Modifier.size(40.dp)
-                        )
-                        Text(
-                            text = "No Contacts Configured",
-                            style = MaterialTheme.typography.titleLarge,
-                            color = TextPrimary,
-                            fontWeight = FontWeight.Bold
-                        )
-                        Text(
-                            text = "CareBuddy needs at least one emergency contact to dispatch SMS and phone calls when SOS is activated.",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = TextSecondary,
-                            textAlign = androidx.compose.ui.text.style.TextAlign.Center
-                        )
-                    }
-                }
-            } else {
-                LazyColumn(
-                    verticalArrangement = Arrangement.spacedBy(12.dp),
-                    modifier = Modifier.fillMaxSize()
-                ) {
-                    items(contacts) { contact ->
-                        ContactCardItem(
+                InsetGroupedList {
+                    contacts.forEachIndexed { index, contact ->
+                        ContactRowItem(
                             contact = contact,
+                            isLast = index == contacts.lastIndex,
+                            onToggleEnabled = {
+                                val updated = contacts.map {
+                                    if (it.id == contact.id) it.copy(enabled = !it.enabled) else it
+                                }
+                                viewModel.updateEmergencyContacts(updated)
+                            },
                             onSetPrimary = {
-                                val updated = contacts.map { it.copy(isPrimary = (it.id == contact.id)) }
+                                val updated = contacts.map {
+                                    it.copy(isPrimary = it.id == contact.id)
+                                }
                                 viewModel.updateEmergencyContacts(updated)
                             },
                             onEdit = {
                                 editingContact = contact
                                 inputName = contact.name
                                 inputPhone = contact.phoneNumber
-                                showDialog = true
+                                inputIsPrimary = contact.isPrimary
+                                validationError = null
+                                showSheet = true
                             },
                             onDelete = {
                                 val updated = contacts.filter { it.id != contact.id }
@@ -142,174 +126,234 @@ fun EmergencyContactScreen(viewModel: MainViewModel) {
                 }
             }
         }
+    }
 
-        if (showDialog) {
-            val isPhoneValid = inputPhone.isBlank() || isValidPhoneNumber(inputPhone)
-            val isFormValid = inputName.isNotBlank() && inputPhone.isNotBlank() && isValidPhoneNumber(inputPhone)
+    // Add / Edit Contact Modal Sheet
+    if (showSheet) {
+        GlassBottomSheet(
+            onDismissRequest = { showSheet = false }
+        ) {
+            Text(
+                text = if (editingContact == null) "New Emergency Contact" else "Edit Contact",
+                style = MaterialTheme.typography.titleLarge.copy(fontSize = 20.sp, fontWeight = FontWeight.Bold),
+                color = colors.textPrimary,
+                modifier = Modifier.padding(bottom = 16.dp)
+            )
 
-            AlertDialog(
-                onDismissRequest = { showDialog = false },
-                containerColor = SlateCard,
-                title = {
-                    Text(
-                        if (editingContact == null) "Add Emergency Contact" else "Edit Contact",
-                        color = TextPrimary,
-                        fontWeight = FontWeight.Bold
+            SectionHeader(text = "Contact Name")
+            IosTextField(
+                value = inputName,
+                onValueChange = { inputName = it; validationError = null },
+                placeholder = "Full Name (e.g. Sarah Miller)",
+                leadingIcon = Icons.Outlined.Person
+            )
+
+            Spacer(modifier = Modifier.height(12.dp))
+
+            SectionHeader(text = "Phone Number")
+            IosTextField(
+                value = inputPhone,
+                onValueChange = { inputPhone = it; validationError = null },
+                placeholder = "+1 555 123 4567",
+                leadingIcon = Icons.Outlined.Phone,
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone),
+                errorMessage = validationError
+            )
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            // Primary Contact Switch
+            InsetGroupedList {
+                ListRow(
+                    title = "Primary emergency contact",
+                    subtitle = "First recipient called and texted during an emergency",
+                    icon = Icons.Outlined.Star,
+                    iconBackgroundColor = colors.warning,
+                    showDivider = false,
+                    trailing = {
+                        IosSwitch(
+                            checked = inputIsPrimary,
+                            onCheckedChange = { inputIsPrimary = it }
+                        )
+                    }
+                )
+            }
+
+            Spacer(modifier = Modifier.height(24.dp))
+
+            CapsuleButton(
+                text = if (editingContact == null) "Save Contact" else "Update Contact",
+                onClick = {
+                    if (inputName.isBlank()) {
+                        validationError = "Please enter contact name"
+                        return@CapsuleButton
+                    }
+                    if (!isValidPhoneNumber(inputPhone)) {
+                        validationError = "Enter a valid phone number (7–15 digits)"
+                        return@CapsuleButton
+                    }
+
+                    val newContact = EmergencyContact(
+                        id = editingContact?.id ?: UUID.randomUUID().toString(),
+                        name = inputName.trim(),
+                        phoneNumber = inputPhone.trim(),
+                        isPrimary = inputIsPrimary,
+                        enabled = editingContact?.enabled ?: true
                     )
-                },
-                text = {
-                    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                        OutlinedTextField(
-                            value = inputName,
-                            onValueChange = { inputName = it },
-                            label = { Text("Contact Name", color = TextSecondary) },
-                            singleLine = true,
-                            colors = OutlinedTextFieldDefaults.colors(
-                                focusedBorderColor = TealLight,
-                                unfocusedBorderColor = SlateCardBorder,
-                                focusedTextColor = TextPrimary,
-                                unfocusedTextColor = TextPrimary
-                            )
-                        )
-                        OutlinedTextField(
-                            value = inputPhone,
-                            onValueChange = { inputPhone = it },
-                            label = { Text("Phone Number", color = TextSecondary) },
-                            singleLine = true,
-                            isError = !isPhoneValid,
-                            supportingText = if (!isPhoneValid) {
-                                { Text("Enter a valid phone number (7-15 digits)", color = RedEmergency) }
-                            } else null,
-                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone),
-                            colors = OutlinedTextFieldDefaults.colors(
-                                focusedBorderColor = TealLight,
-                                unfocusedBorderColor = SlateCardBorder,
-                                focusedTextColor = TextPrimary,
-                                unfocusedTextColor = TextPrimary,
-                                errorBorderColor = RedEmergency
-                            )
-                        )
+
+                    val updatedList = if (editingContact != null) {
+                        contacts.map { if (it.id == newContact.id) newContact else it }
+                    } else {
+                        contacts + newContact
                     }
-                },
-                confirmButton = {
-                    Button(
-                        onClick = {
-                            if (isFormValid) {
-                                val newContact = EmergencyContact(
-                                    id = editingContact?.id ?: System.currentTimeMillis().toString(),
-                                    name = inputName.trim(),
-                                    phoneNumber = inputPhone.trim(),
-                                    isPrimary = editingContact?.isPrimary ?: (contacts.isEmpty() || !contacts.any { it.isPrimary })
-                                )
-                                val updated = if (editingContact == null) {
-                                    contacts + newContact
-                                } else {
-                                    contacts.map { if (it.id == editingContact!!.id) newContact else it }
-                                }
-                                viewModel.updateEmergencyContacts(updated)
-                                showDialog = false
-                            }
-                        },
-                        colors = ButtonDefaults.buttonColors(containerColor = TealLight),
-                        enabled = isFormValid
-                    ) {
-                        Text("Save", color = if (isFormValid) SlateDark else TextMuted, fontWeight = FontWeight.Bold)
+
+                    val finalList = if (inputIsPrimary) {
+                        updatedList.map { it.copy(isPrimary = it.id == newContact.id) }
+                    } else {
+                        updatedList
                     }
+
+                    viewModel.updateEmergencyContacts(finalList)
+                    showSheet = false
                 },
-                dismissButton = {
-                    TextButton(onClick = { showDialog = false }) {
-                        Text("Cancel", color = TextSecondary)
-                    }
-                }
+                style = ButtonStyle.Filled,
+                modifier = Modifier.fillMaxWidth()
             )
         }
     }
 }
 
 @Composable
-fun ContactCardItem(
+private fun ContactRowItem(
     contact: EmergencyContact,
+    isLast: Boolean,
+    onToggleEnabled: () -> Unit,
     onSetPrimary: () -> Unit,
     onEdit: () -> Unit,
     onDelete: () -> Unit
 ) {
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(containerColor = SlateCard),
-        shape = RoundedCornerShape(16.dp),
-        border = BorderStroke(1.dp, if (contact.isPrimary) TealLight else SlateCardBorder)
-    ) {
+    val colors = CareBuddyTheme.colors
+    var showDeleteConfirm by remember { mutableStateOf(false) }
+
+    val initials = contact.name.split(" ")
+        .mapNotNull { it.firstOrNull()?.toString() }
+        .take(2)
+        .joinToString("")
+        .uppercase()
+
+    Column(modifier = Modifier.fillMaxWidth()) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(16.dp),
-            horizontalArrangement = Arrangement.SpaceBetween,
+                .pressScale(onClick = onEdit)
+                .padding(horizontal = 16.dp, vertical = 14.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Column(modifier = Modifier.weight(1f)) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(
-                        text = contact.name,
-                        style = MaterialTheme.typography.titleLarge,
-                        color = TextPrimary,
+            // Avatar (Tap to set as primary)
+            Box(
+                modifier = Modifier
+                    .size(40.dp)
+                    .clip(CircleShape)
+                    .background(if (contact.isPrimary) colors.accent else colors.switchTrackOff)
+                    .pressScale(onClick = { if (!contact.isPrimary) onSetPrimary() }),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    text = if (initials.isNotEmpty()) initials else "C",
+                    style = MaterialTheme.typography.titleMedium.copy(
+                        fontSize = 15.sp,
                         fontWeight = FontWeight.Bold
-                    )
-                    if (contact.isPrimary) {
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Surface(
-                            shape = RoundedCornerShape(4.dp),
-                            color = TealAccent.copy(alpha = 0.2f)
-                        ) {
-                            Text(
-                                text = "PRIMARY",
-                                color = TealLight,
-                                style = MaterialTheme.typography.labelSmall,
-                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
-                                fontWeight = FontWeight.Bold
-                            )
-                        }
-                    }
-                }
-                Spacer(modifier = Modifier.height(4.dp))
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(
-                        imageVector = Icons.Default.Phone,
-                        contentDescription = null,
-                        tint = TextSecondary,
-                        modifier = Modifier.size(16.dp)
-                    )
-                    Spacer(modifier = Modifier.width(6.dp))
-                    Text(
-                        text = contact.phoneNumber,
-                        style = MaterialTheme.typography.bodyLarge,
-                        color = TextSecondary
-                    )
-                }
+                    ),
+                    color = if (contact.isPrimary) Color.White else colors.textPrimary
+                )
             }
 
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                IconButton(onClick = onSetPrimary) {
-                    Icon(
-                        imageVector = if (contact.isPrimary) Icons.Default.Star else Icons.Default.StarBorder,
-                        contentDescription = "Set Primary",
-                        tint = if (contact.isPrimary) AmberWarning else TextSecondary
+            Spacer(modifier = Modifier.width(14.dp))
+
+            // Details
+            Column(modifier = Modifier.weight(1f)) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Text(
+                        text = contact.name,
+                        style = MaterialTheme.typography.titleLarge.copy(
+                            fontSize = 17.sp,
+                            fontWeight = FontWeight.SemiBold
+                        ),
+                        color = if (contact.enabled) colors.textPrimary else colors.textTertiary
                     )
+
+                    if (contact.isPrimary) {
+                        StatusPill(label = "Primary", dotColor = colors.accent)
+                    }
                 }
-                IconButton(onClick = onEdit) {
-                    Icon(
-                        imageVector = Icons.Default.Edit,
-                        contentDescription = "Edit Contact",
-                        tint = TealLight
-                    )
-                }
-                IconButton(onClick = onDelete) {
-                    Icon(
-                        imageVector = Icons.Default.Delete,
-                        contentDescription = "Delete Contact",
-                        tint = RedEmergency
-                    )
-                }
+
+                Spacer(modifier = Modifier.height(2.dp))
+
+                Text(
+                    text = contact.phoneNumber,
+                    style = MaterialTheme.typography.bodyMedium.copy(fontSize = 13.sp),
+                    color = colors.textSecondary
+                )
             }
+
+            // Visible Delete Button
+            IconButton(
+                onClick = { showDeleteConfirm = true },
+                modifier = Modifier.size(32.dp)
+            ) {
+                Icon(
+                    imageVector = Icons.Outlined.DeleteOutline,
+                    contentDescription = "Delete",
+                    tint = colors.textTertiary,
+                    modifier = Modifier.size(19.dp)
+                )
+            }
+
+            Spacer(modifier = Modifier.width(6.dp))
+
+            // Enabled Toggle
+            IosSwitch(
+                checked = contact.enabled,
+                onCheckedChange = { onToggleEnabled() }
+            )
         }
+
+        if (!isLast) {
+            HorizontalDivider(
+                color = colors.separator,
+                thickness = 0.5.dp,
+                modifier = Modifier.padding(start = 70.dp)
+            )
+        }
+    }
+
+    if (showDeleteConfirm) {
+        AlertDialog(
+            onDismissRequest = { showDeleteConfirm = false },
+            title = { Text("Delete Contact", style = MaterialTheme.typography.titleMedium) },
+            text = { Text("Remove '${contact.name}' from your emergency notification list?") },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        showDeleteConfirm = false
+                        onDelete()
+                    }
+                ) {
+                    Text("Delete", color = colors.danger, fontWeight = FontWeight.SemiBold)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDeleteConfirm = false }) {
+                    Text("Cancel", color = colors.accent)
+                }
+            },
+            containerColor = colors.backgroundSecondary,
+            titleContentColor = colors.textPrimary,
+            textContentColor = colors.textSecondary,
+            shape = RoundedCornerShape(22.dp)
+        )
     }
 }
