@@ -144,7 +144,7 @@ fun EmergencyContactScreen(viewModel: MainViewModel) {
                                     id = editingContact?.id ?: System.currentTimeMillis().toString(),
                                     name = inputName.trim(),
                                     phoneNumber = inputPhone.trim(),
-                                    isPrimary = editingContact?.isPrimary ?: (contacts.isEmpty())
+                                    isPrimary = editingContact?.isPrimary ?: (contacts.isEmpty() || !contacts.any { it.isPrimary })
                                 )
                                 val updated = if (editingContact == null) {
                                     contacts + newContact

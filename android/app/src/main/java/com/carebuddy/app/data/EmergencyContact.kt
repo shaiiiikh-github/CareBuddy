@@ -4,5 +4,6 @@ data class EmergencyContact(
     val id: String = "primary",
     val name: String,
     val phoneNumber: String,
-    val isPrimary: Boolean = true
+    val isPrimary: Boolean = true,
+    val enabled: Boolean = true
 )
