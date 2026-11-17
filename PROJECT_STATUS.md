@@ -3,7 +3,7 @@
 ## 1. Snapshot
 * **Date Analyzed**: 17 November 2026
 * **Repository Branch**: `fix/no-dead-ui`
-* **Published Release**: `v1.1.0` (tagged on GitHub, attached asset `CareBuddy-v1.1.0.apk`)
+* **Published Release**: `v1.2.0` (tagged on GitHub, attached asset `CareBuddy-v1.2.0.apk`)
 * **Overall Completion Estimate**: **100%** — Full dead UI purge and static analysis hardening complete. Every single visible control, label, number, and screen does something real with zero decorative or misleading elements. Hardware sensitivity steppers that lacked firmware protocol support have been purged and documented in `docs/future_work.md`. Dynamic build versioning is bound to `BuildConfig`. Unused permissions were stripped, telephony `<uses-feature>` flags added, receiver export security compliance enforced, and a settings contract test guarantees no orphaned keys. Android Lint passes with **0 errors**.
 
 ---
