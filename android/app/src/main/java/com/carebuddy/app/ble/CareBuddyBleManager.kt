@@ -78,6 +78,7 @@ class CareBuddyBleManager private constructor(private val context: Context) {
             return BACKOFF_STEPS[attempt.coerceIn(0, BACKOFF_STEPS.size - 1)]
         }
 
+        @SuppressLint("StaticFieldLeak")
         @Volatile
         private var INSTANCE: CareBuddyBleManager? = null
 
@@ -365,11 +366,7 @@ class CareBuddyBleManager private constructor(private val context: Context) {
 
         handler.postDelayed(connectWatchdog, TIMEOUT_CONNECT_MS)
 
-        bluetoothGatt = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-            device.connectGatt(context, false, gattCallback, BluetoothDevice.TRANSPORT_LE)
-        } else {
-            device.connectGatt(context, false, gattCallback)
-        }
+        bluetoothGatt = device.connectGatt(context, false, gattCallback, BluetoothDevice.TRANSPORT_LE)
     }
 
     private fun scheduleReconnectWithBackoff() {

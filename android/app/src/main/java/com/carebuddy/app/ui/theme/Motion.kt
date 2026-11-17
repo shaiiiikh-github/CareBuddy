@@ -1,5 +1,6 @@
 package com.carebuddy.app.ui.theme
 
+import android.os.Build
 import android.view.HapticFeedbackConstants
 import android.view.View
 import androidx.compose.animation.core.Spring
@@ -79,12 +80,20 @@ fun View.performHapticTick() {
 
 fun View.performHapticSuccess() {
     try {
-        performHapticFeedback(HapticFeedbackConstants.CONFIRM)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            performHapticFeedback(HapticFeedbackConstants.CONFIRM)
+        } else {
+            performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
+        }
     } catch (_: Exception) {}
 }
 
 fun View.performHapticWarning() {
     try {
-        performHapticFeedback(HapticFeedbackConstants.REJECT)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            performHapticFeedback(HapticFeedbackConstants.REJECT)
+        } else {
+            performHapticFeedback(HapticFeedbackConstants.LONG_PRESS)
+        }
     } catch (_: Exception) {}
 }

@@ -217,11 +217,12 @@ class SosDispatcher(
             addAction(ACTION_SMS_DELIVERED)
         }
         try {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                context.registerReceiver(smsReceiver, filter, Context.RECEIVER_NOT_EXPORTED)
-            } else {
-                context.registerReceiver(smsReceiver, filter)
-            }
+            ContextCompat.registerReceiver(
+                context,
+                smsReceiver,
+                filter,
+                ContextCompat.RECEIVER_NOT_EXPORTED
+            )
         } catch (e: Exception) {
             Log.e(TAG, "Failed registering SMS broadcast receiver", e)
         }
