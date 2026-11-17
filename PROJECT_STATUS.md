@@ -1,10 +1,10 @@
 # CareBuddy - Project Status & Working History
 
 ## 1. Snapshot
-* **Date Analyzed**: 16 November 2026
-* **Repository Branch**: `main` (merged from `ui/glass-redesign`)
+* **Date Analyzed**: 17 November 2026
+* **Repository Branch**: `fix/ble-status-and-functional-audit`
 * **Published Release**: `v1.1.0` (tagged on GitHub, attached asset `CareBuddy-v1.1.0.apk`)
-* **Overall Completion Estimate**: **98%** — Both ESP32 firmware and Android companion app have fully functioning UI, BLE communication, reminder scheduling, acoustic escalation, and emergency SOS pipeline. The critical P0/P1 safety and architecture gaps are resolved, and the entire Android UI has been redesigned with the iOS 26 "Liquid Glass" design system: custom glass surfaces, floating tab bar, inset grouped tables, tactile spring physics, calm human copy, zero emojis, and complete light/dark theme support.
+* **Overall Completion Estimate**: **99%** — Both ESP32 firmware and Android companion app have fully functioning UI, BLE communication, reminder scheduling, acoustic escalation, and emergency SOS pipeline. The critical P0/P1 safety and architecture gaps are resolved. The BLE connection pipeline has been hardened with a singleton manager, per-stage watchdogs, exponential backoff (2s..30s), radio/location monitors, in-app event logging, and an active 10s scan diagnostic tool. All 46 interactive controls have been functionally audited and verified or wired.
 
 ---
 
@@ -20,6 +20,10 @@ CareBuddy/
 ├── protocol/
 │   └── communication_protocol.md                       (91 lines, 1.90 KB)
 ├── docs/
+│   ├── BLE_CONNECTION_DEBUG.md                         (Root causes, state machine, watchdogs, and triage guide)
+│   ├── FUNCTIONAL_AUDIT.md                             (46-control UI audit table, status, and code paths)
+│   ├── MANUAL_TEST_CHECKLIST.md                        (9 end-to-end QA scenarios for physical hardware)
+│   ├── firmware_patch_proposal.md                      (Non-breaking ESP32 advertising restart & 128-bit flag patch)
 │   ├── setup.md                                        (31 lines, 1.59 KB)
 │   ├── troubleshooting.md                              (32 lines, 2.25 KB)
 │   ├── ui_audit.md                                     (52 lines, Phase 0 audit & before/after transformations)
@@ -41,8 +45,11 @@ CareBuddy/
         ├── build.gradle.kts                            (62 lines, 1.95 KB)
         ├── src/
         │   ├── test/java/com/carebuddy/app/
-        │   │   ├── data/CareBuddyRepositoryTest.kt      (Unit tests for migration, primary contact selection, phone validation)
+        │   │   ├── ble/CareBuddyBleStatusTest.kt       (Unit tests for BleStatus mapping, timeouts, exponential backoff)
+        │   │   ├── data/CareBuddyRepositoryTest.kt     (Unit tests for migration, primary contact selection, phone validation)
+        │   │   ├── data/SettingsPersistenceTest.kt     (Unit tests for hardware sensitivity steppers persistence)
         │   │   ├── protocol/BleProtocolJsonTest.kt     (Unit tests for BLE JSON parsing, parity, and serialization)
+        │   │   ├── protocol/FakeEsp32Test.kt           (Simulated ESP32 message parsing, error resilience, corrupted packets)
         │   │   └── sos/SosDispatcherTest.kt            (Unit tests for SMS normalization, GSM-7, retry, deduplication)
         │   └── main/
         │       ├── AndroidManifest.xml                 (48 lines, permissions, service, boot receiver)
@@ -201,11 +208,14 @@ TX Characteristic (ESP32 -> App Notify): `6E400003-B5A3-F393-E0A9-E50E24DCCA9E`
 
 ### 6.2 Test Coverage
 * **Command Run**: `cd android; .\gradlew.bat testDebugUnitTest`
-* **Result**: **SUCCESS (Exit Code 0, 11 tests executed, 0 failures)**
+* **Result**: **SUCCESS (Exit Code 0, 36 tests executed, 0 failures)**
 * **Test Suites**:
+  * `CareBuddyBleStatusTest`: Exhaustive status label/action mapping, watchdog timeouts (12s scan, 15s connect, 2s MTU, 10s discovery, 5s CCCD), and exponential backoff calculations.
   * `CareBuddyRepositoryTest`: Migration of placeholder numbers, auto-primary selection, phone validation logic.
+  * `SettingsPersistenceTest`: Hardware sensitivity settings persistence (`touchMinMs` 80ms default, `sosHoldMs` 3000ms default) across repository re-instantiation.
   * `SosDispatcherTest`: GSM-7 formatting, multi-contact sequential delivery, retry logic, deduplication window, multipart splitting.
   * `BleProtocolJsonTest`: BLE JSON parsing for all protocol commands (`ADD_REMINDER`, `SYNC_TIME`, `SOS`, `REMINDER_TRIGGERED`, `REMINDER_ACK`).
+  * `FakeEsp32Test`: Simulated ESP32 Nordic UART TX characteristic packet stream parsing, malformed JSON recovery, and truncated payload resilience.
 
 ---
 
