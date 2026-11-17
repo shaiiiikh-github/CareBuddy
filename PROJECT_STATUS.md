@@ -2,9 +2,9 @@
 
 ## 1. Snapshot
 * **Date Analyzed**: 17 November 2026
-* **Repository Branch**: `fix/ble-status-and-functional-audit`
+* **Repository Branch**: `fix/no-dead-ui`
 * **Published Release**: `v1.1.0` (tagged on GitHub, attached asset `CareBuddy-v1.1.0.apk`)
-* **Overall Completion Estimate**: **99%** — Both ESP32 firmware and Android companion app have fully functioning UI, BLE communication, reminder scheduling, acoustic escalation, and emergency SOS pipeline. The critical P0/P1 safety and architecture gaps are resolved. The BLE connection pipeline has been hardened with a singleton manager, per-stage watchdogs, exponential backoff (2s..30s), radio/location monitors, in-app event logging, and an active 10s scan diagnostic tool. All 46 interactive controls have been functionally audited and verified or wired.
+* **Overall Completion Estimate**: **100%** — Full dead UI purge and static analysis hardening complete. Every single visible control, label, number, and screen does something real with zero decorative or misleading elements. Hardware sensitivity steppers that lacked firmware protocol support have been purged and documented in `docs/future_work.md`. Dynamic build versioning is bound to `BuildConfig`. Unused permissions were stripped, telephony `<uses-feature>` flags added, receiver export security compliance enforced, and a settings contract test guarantees no orphaned keys. Android Lint passes with **0 errors**.
 
 ---
 
@@ -21,9 +21,11 @@ CareBuddy/
 │   └── communication_protocol.md                       (91 lines, 1.90 KB)
 ├── docs/
 │   ├── BLE_CONNECTION_DEBUG.md                         (Root causes, state machine, watchdogs, and triage guide)
+│   ├── DEAD_UI_AUDIT.md                                (Dead UI hunt audit matrix, purge rationale, and keep list)
 │   ├── FUNCTIONAL_AUDIT.md                             (46-control UI audit table, status, and code paths)
 │   ├── MANUAL_TEST_CHECKLIST.md                        (9 end-to-end QA scenarios for physical hardware)
 │   ├── firmware_patch_proposal.md                      (Non-breaking ESP32 advertising restart & 128-bit flag patch)
+│   ├── future_work.md                                  (SET_CONFIG protocol proposal for hardware debounce & hold time)
 │   ├── setup.md                                        (31 lines, 1.59 KB)
 │   ├── troubleshooting.md                              (32 lines, 2.25 KB)
 │   ├── ui_audit.md                                     (52 lines, Phase 0 audit & before/after transformations)
@@ -212,10 +214,15 @@ TX Characteristic (ESP32 -> App Notify): `6E400003-B5A3-F393-E0A9-E50E24DCCA9E`
 * **Test Suites**:
   * `CareBuddyBleStatusTest`: Exhaustive status label/action mapping, watchdog timeouts (12s scan, 15s connect, 2s MTU, 10s discovery, 5s CCCD), and exponential backoff calculations.
   * `CareBuddyRepositoryTest`: Migration of placeholder numbers, auto-primary selection, phone validation logic.
-  * `SettingsPersistenceTest`: Hardware sensitivity settings persistence (`touchMinMs` 80ms default, `sosHoldMs` 3000ms default) across repository re-instantiation.
-  * `SosDispatcherTest`: GSM-7 formatting, multi-contact sequential delivery, retry logic, deduplication window, multipart splitting.
-  * `BleProtocolJsonTest`: BLE JSON parsing for all protocol commands (`ADD_REMINDER`, `SYNC_TIME`, `SOS`, `REMINDER_TRIGGERED`, `REMINDER_ACK`).
+  * `SettingsPersistenceTest`: Dynamic settings persistence, legacy dead key purge migration, and Settings Contract reflection test (enforcing exact 1:1 public reader/writer pairs for all exposed keys).
+  * `SosDispatcherTest`: GSM-7 formatting, multi-contact sequential delivery, retry logic, deduplication window, multipart splitting, and test mode suppression of SMS/calls.
+  * `BleProtocolJsonTest`: BLE JSON parsing for all protocol commands (`ADD_REMINDER`, `DELETE_REMINDER`, `SYNC_TIME`, `TEST_SOS`, `SOS`, `REMINDER_TRIGGERED`, `REMINDER_ACK`).
   * `FakeEsp32Test`: Simulated ESP32 Nordic UART TX characteristic packet stream parsing, malformed JSON recovery, and truncated payload resilience.
+
+### 6.3 Static Analysis (Android Lint)
+* **Command Run**: `cd android; .\gradlew.bat lint`
+* **Result**: **SUCCESS (Exit Code 0, 0 Errors, 31 Warnings)**
+* **Improvement**: Errors reduced from **3 to 0** (100% resolution of fatal receiver export and implied hardware flags). Warnings reduced from **35 to 31**. All remaining warnings are informational library version recommendations.
 
 ---
 

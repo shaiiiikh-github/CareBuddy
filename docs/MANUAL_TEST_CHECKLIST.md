@@ -76,15 +76,14 @@ This manual verification protocol must be executed on a physical Android device 
    * Live cards show *"Delivered"*.
    * Phone initiates phone call to primary contact.
 
-### TC-08: Settings Persistence Across App Kill
-1. In Settings, modify:
-   * Minimum touch press: `120 ms`
-   * SOS hold countdown: `4 s`
-   * Custom emergency SMS text.
+### TC-08: Settings Persistence & Dynamic Build Info Across App Kill
+1. In Settings, edit the Custom Emergency SMS text to: *"Urgent: Testing custom CareBuddy SOS text"*.
 2. Force-stop the app via Android Settings -> Apps -> CareBuddy -> Force Stop.
-3. Re-open CareBuddy.
-4. Navigate to Settings.
-5. **Expected Result**: All modified values (`120 ms`, `4 s`, custom SMS text) are restored from `SharedPreferences`.
+3. Re-open CareBuddy and navigate to Settings.
+4. **Expected Result**:
+   * Custom emergency SMS text is restored from `SharedPreferences`.
+   * Application version dynamically shows exact build info (e.g. `1.1.0 (Build 2) • Release` and `v1.1.0`) matching `BuildConfig`.
+   * Legacy sensitivity keys (if present) are cleaned via migration flag `settings_migrated_v1`.
 
 ### TC-09: Diagnostic Log Capture
 1. In Settings, scroll to the Diagnostics section.

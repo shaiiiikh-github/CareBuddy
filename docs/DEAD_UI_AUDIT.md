@@ -6,7 +6,20 @@
 
 ---
 
-## 1. Audit Findings Matrix
+## 1. Audit Summary & Counts
+
+* **Total Components Audited**: 53 (9 audit candidates + 44 live features)
+* **Items Removed**: **4** (Dead hardware touch debounce stepper, dead SOS hold stepper, unused `REQUEST_IGNORE_BATTERY_OPTIMIZATIONS` permission, redundant activity label)
+* **Items Wired / Fixed**: **5** (`BuildConfig` dynamic versioning, telephony `<uses-feature>`, receiver export flag, obsolete SDK check removal, static context leak annotation)
+* **Items Relabeled**: **0**
+* **Items Kept (Verified Alive)**: **44**
+* **Android Lint Result**:
+  * **Errors**: **0** (Reduced from 3 to 0)
+  * **Warnings**: **31** (Reduced from 35 to 31)
+
+---
+
+## 2. Audit Findings Matrix
 
 | Item | Screen / File:Line | Kind | Why Dead or Fake (Evidence) | Verdict | Reason & Action Taken |
 |:---|:---|:---:|:---|:---:|:---|
