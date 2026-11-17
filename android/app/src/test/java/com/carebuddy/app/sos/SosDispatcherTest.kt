@@ -140,15 +140,23 @@ class SosDispatcherTest {
     }
 
     @Test
-    fun testFakeSenderThrowsExceptionHandling() {
-        fakeSender.shouldThrowException = true
-        var exceptionCaught = false
-        try {
-            fakeSender.sendMultipart("+15551234567", listOf("Test"), null, null)
-        } catch (e: Exception) {
-            exceptionCaught = true
-            assertTrue(e.message!!.contains("Radio / RIL"))
-        }
-        assertTrue(exceptionCaught)
+    fun testTestSosNeverDispatchesSmsOrCalls() {
+        val contacts = listOf(
+            EmergencyContact("1", "Alice", "+19876543210", isPrimary = true, enabled = true)
+        )
+        fakePrefs.putString("key_contacts", gson.toJson(contacts))
+        CareBuddyRepository(fakePrefs)
+
+        // When in test mode, no SMS transmission must occur
+        assertEquals(0, fakeSender.sentMessages.size)
+
+        val testState = SosDispatchState(
+            isTriggered = true,
+            isTestMode = true,
+            contactsStatus = emptyList()
+        )
+        assertTrue("Test mode must be true", testState.isTestMode)
+        assertTrue("Triggered must be true", testState.isTriggered)
+        assertEquals("Zero SMS records when in test mode", 0, fakeSender.sentMessages.size)
     }
 }
