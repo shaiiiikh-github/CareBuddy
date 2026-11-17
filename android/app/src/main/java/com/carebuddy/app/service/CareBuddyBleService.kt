@@ -85,7 +85,7 @@ class CareBuddyBleService : Service() {
         Log.i(TAG, "CareBuddyBleService created")
 
         repository = CareBuddyRepository(applicationContext)
-        bleManager = CareBuddyBleManager(applicationContext)
+        bleManager = CareBuddyBleManager.getInstance(applicationContext)
         sosDispatcher = SosDispatcher(applicationContext, repository)
 
         createNotificationChannels()

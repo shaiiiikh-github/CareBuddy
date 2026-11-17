@@ -1,12 +1,18 @@
 package com.carebuddy.app.ui.screens
 
+import android.content.ClipData
+import android.content.ClipboardManager
+import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import android.os.Build
 import android.provider.Settings
 import android.widget.Toast
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.BluetoothSearching
@@ -16,10 +22,15 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.carebuddy.app.ble.BleConnectionState
+import com.carebuddy.app.ble.BleScanTestResult
+import com.carebuddy.app.ble.BleStatus
 import com.carebuddy.app.ui.components.*
 import com.carebuddy.app.ui.theme.CareBuddyTheme
 import com.carebuddy.app.viewmodel.MainViewModel
@@ -27,15 +38,20 @@ import com.carebuddy.app.viewmodel.MainViewModel
 @Composable
 fun SettingsScreen(viewModel: MainViewModel) {
     val context = LocalContext.current
-    val connectionState by viewModel.connectionState.collectAsState()
+    val bleStatus by viewModel.bleStatus.collectAsState()
     val deviceName by viewModel.deviceName.collectAsState()
     val currentSosMsg by viewModel.sosCustomMessage.collectAsState()
     val contacts by viewModel.emergencyContacts.collectAsState()
+    val touchMinMs by viewModel.touchMinMs.collectAsState()
+    val sosHoldMs by viewModel.sosHoldMs.collectAsState()
 
-    var sosMessageText by remember { mutableStateOf(currentSosMsg) }
-    var minTouchMs by remember { mutableFloatStateOf(80f) }
-    var sosHoldMs by remember { mutableFloatStateOf(3000f) }
+    var sosMessageText by remember(currentSosMsg) { mutableStateOf(currentSosMsg) }
     var diagnostics by remember { mutableStateOf(viewModel.getDiagnosticsInfo()) }
+
+    var isRunningScanTest by remember { mutableStateOf(false) }
+    var scanTestResults by remember { mutableStateOf<List<BleScanTestResult>>(emptyList()) }
+    var showEventLog by remember { mutableStateOf(false) }
+    var eventLogs by remember { mutableStateOf<List<String>>(emptyList()) }
 
     // Refresh diagnostics when screen is active
     LaunchedEffect(Unit) {
@@ -46,7 +62,7 @@ fun SettingsScreen(viewModel: MainViewModel) {
 
     LargeTitleScaffold(
         title = "Settings",
-        subtitle = "Device preferences, emergency message, and system diagnostics"
+        subtitle = "Device link, emergency preferences, and real-time diagnostics"
     ) {
         Column(
             modifier = Modifier
@@ -55,51 +71,77 @@ fun SettingsScreen(viewModel: MainViewModel) {
                 .padding(bottom = 100.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            // Section 1: Device Connection
-            SectionHeader(text = "CareBuddy Companion")
+            // Section 1: Real-Time BLE Connection Status
+            SectionHeader(text = "CareBuddy Companion Link")
             InsetGroupedList {
                 ListRow(
                     title = deviceName ?: "CareBuddy Device",
-                    subtitle = when (connectionState) {
-                        BleConnectionState.CONNECTED -> "Paired and transmitting"
-                        BleConnectionState.CONNECTING,
-                        BleConnectionState.RECONNECTING -> "Scanning for device…"
-                        BleConnectionState.DISCONNECTED -> "Device disconnected"
+                    subtitle = when (bleStatus) {
+                        is BleStatus.Connected -> "Paired and synchronized over BLE"
+                        is BleStatus.Connecting -> "Establishing GATT link…"
+                        is BleStatus.SettingUp -> (bleStatus as BleStatus.SettingUp).stage
+                        is BleStatus.Scanning -> "Scanning for advertising CareBuddy devices…"
+                        is BleStatus.DeviceNotFound -> "CareBuddy not found. Is it powered on and nearby?"
+                        is BleStatus.BluetoothOff -> "Bluetooth adapter is turned off"
+                        is BleStatus.PermissionNeeded -> "Bluetooth scan/connect permissions required"
+                        is BleStatus.LocationOff -> "Location services must be enabled for BLE scanning"
+                        is BleStatus.Disconnected -> (bleStatus as BleStatus.Disconnected).reason ?: "Disconnected"
+                        is BleStatus.Idle -> "Idle"
                     },
                     icon = Icons.Outlined.Bluetooth,
-                    iconBackgroundColor = colors.accent,
+                    iconBackgroundColor = if (bleStatus is BleStatus.Connected) colors.accent else colors.tintGray,
                     trailing = {
-                        StatusPill(
-                            label = when (connectionState) {
-                                BleConnectionState.CONNECTED -> "Connected"
-                                BleConnectionState.CONNECTING -> "Connecting"
-                                BleConnectionState.RECONNECTING -> "Retrying"
-                                BleConnectionState.DISCONNECTED -> "Offline"
-                            },
-                            dotColor = when (connectionState) {
-                                BleConnectionState.CONNECTED -> colors.success
-                                BleConnectionState.DISCONNECTED -> colors.tintGray
-                                else -> colors.warning
-                            }
-                        )
+                        val (dotColor, label) = when (bleStatus) {
+                            is BleStatus.Connected -> colors.success to "Connected"
+                            is BleStatus.Connecting -> colors.warning to "Connecting"
+                            is BleStatus.SettingUp -> colors.warning to "Setting up"
+                            is BleStatus.Scanning -> colors.warning to "Searching"
+                            is BleStatus.DeviceNotFound -> colors.warning to "Not found"
+                            is BleStatus.BluetoothOff -> colors.tintGray to "BT off"
+                            is BleStatus.PermissionNeeded -> colors.danger to "Permission"
+                            is BleStatus.LocationOff -> colors.warning to "Location off"
+                            is BleStatus.Disconnected -> colors.tintGray to "Offline"
+                            is BleStatus.Idle -> colors.tintGray to "Idle"
+                        }
+                        StatusPill(label = label, dotColor = dotColor)
                     }
                 )
 
-                ListRow(
-                    title = if (connectionState == BleConnectionState.CONNECTED) "Disconnect device" else "Connect device",
-                    subtitle = "Manage BLE GATT link",
-                    icon = if (connectionState == BleConnectionState.CONNECTED) Icons.Outlined.BluetoothDisabled else Icons.AutoMirrored.Outlined.BluetoothSearching,
-                    iconBackgroundColor = if (connectionState == BleConnectionState.CONNECTED) colors.tintGray else colors.accent,
-                    showChevron = true,
-                    showDivider = false,
-                    onClick = {
-                        if (connectionState == BleConnectionState.CONNECTED) {
-                            viewModel.disconnectDevice()
-                        } else {
-                            viewModel.connectDevice()
+                // Action row for connection recovery
+                if (bleStatus.actionLabel != null || bleStatus is BleStatus.Connected) {
+                    ListRow(
+                        title = if (bleStatus is BleStatus.Connected) "Disconnect from device" else (bleStatus.actionLabel ?: "Connect"),
+                        subtitle = if (bleStatus is BleStatus.Connected) "Terminate active Bluetooth link" else "Resolve status and reconnect",
+                        icon = if (bleStatus is BleStatus.Connected) Icons.Outlined.BluetoothDisabled else Icons.AutoMirrored.Outlined.BluetoothSearching,
+                        iconBackgroundColor = if (bleStatus is BleStatus.Connected) colors.tintGray else colors.accent,
+                        showChevron = true,
+                        showDivider = false,
+                        onClick = {
+                            when (bleStatus) {
+                                is BleStatus.Connected -> viewModel.disconnectDevice()
+                                is BleStatus.BluetoothOff -> {
+                                    try {
+                                        context.startActivity(Intent(Settings.ACTION_BLUETOOTH_SETTINGS))
+                                    } catch (_: Exception) {}
+                                }
+                                is BleStatus.LocationOff -> {
+                                    try {
+                                        context.startActivity(Intent(Settings.ACTION_LOCATION_SOURCE_SETTINGS))
+                                    } catch (_: Exception) {}
+                                }
+                                is BleStatus.PermissionNeeded -> {
+                                    try {
+                                        val intent = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
+                                            data = Uri.fromParts("package", context.packageName, null)
+                                        }
+                                        context.startActivity(intent)
+                                    } catch (_: Exception) {}
+                                }
+                                else -> viewModel.connectDevice()
+                            }
                         }
-                    }
-                )
+                    )
+                }
             }
 
             // Section 2: Custom Emergency Message
@@ -114,44 +156,87 @@ fun SettingsScreen(viewModel: MainViewModel) {
                 leadingIcon = Icons.Outlined.Sms
             )
 
-            // Section 3: Hardware Preferences
+            // Section 3: Hardware Sensitivity & Timing Preferences
             SectionHeader(text = "Hardware Sensitivity")
             InsetGroupedList {
                 ListRow(
                     title = "Minimum touch press",
-                    subtitle = "${minTouchMs.toInt()} ms debounce window",
+                    subtitle = "$touchMinMs ms debounce window on TTP223 sensor",
                     icon = Icons.Outlined.TouchApp,
                     iconBackgroundColor = colors.warning,
                     trailing = {
-                        Text(
-                            text = "${minTouchMs.toInt()} ms",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = colors.textSecondary
-                        )
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            IconButton(
+                                onClick = {
+                                    val newVal = (touchMinMs - 10).coerceAtLeast(40)
+                                    viewModel.updateTouchMinMs(newVal)
+                                },
+                                modifier = Modifier.size(32.dp)
+                            ) {
+                                Icon(Icons.Outlined.Remove, contentDescription = "Decrease", tint = colors.textPrimary)
+                            }
+                            Text(
+                                text = "$touchMinMs ms",
+                                style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.SemiBold),
+                                color = colors.textPrimary,
+                                modifier = Modifier.padding(horizontal = 4.dp)
+                            )
+                            IconButton(
+                                onClick = {
+                                    val newVal = (touchMinMs + 10).coerceAtMost(300)
+                                    viewModel.updateTouchMinMs(newVal)
+                                },
+                                modifier = Modifier.size(32.dp)
+                            ) {
+                                Icon(Icons.Outlined.Add, contentDescription = "Increase", tint = colors.textPrimary)
+                            }
+                        }
                     }
                 )
+
                 ListRow(
                     title = "SOS hold countdown",
-                    subtitle = "${(sosHoldMs / 1000).toInt()} seconds hold to trigger alarm",
+                    subtitle = "${sosHoldMs / 1000} seconds sensor hold to trigger alarm",
                     icon = Icons.Outlined.Timer,
                     iconBackgroundColor = colors.danger,
                     showDivider = false,
                     trailing = {
-                        Text(
-                            text = "${(sosHoldMs / 1000).toInt()} s",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = colors.textSecondary
-                        )
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            IconButton(
+                                onClick = {
+                                    val newVal = (sosHoldMs - 1000).coerceAtLeast(1000)
+                                    viewModel.updateSosHoldMs(newVal)
+                                },
+                                modifier = Modifier.size(32.dp)
+                            ) {
+                                Icon(Icons.Outlined.Remove, contentDescription = "Decrease", tint = colors.textPrimary)
+                            }
+                            Text(
+                                text = "${sosHoldMs / 1000} s",
+                                style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.SemiBold),
+                                color = colors.textPrimary,
+                                modifier = Modifier.padding(horizontal = 4.dp)
+                            )
+                            IconButton(
+                                onClick = {
+                                    val newVal = (sosHoldMs + 1000).coerceAtMost(10000)
+                                    viewModel.updateSosHoldMs(newVal)
+                                },
+                                modifier = Modifier.size(32.dp)
+                            ) {
+                                Icon(Icons.Outlined.Add, contentDescription = "Increase", tint = colors.textPrimary)
+                            }
+                        }
                     }
                 )
             }
 
             // Section 4: System Diagnostics
-            SectionHeader(text = "Diagnostics & Permissions")
+            SectionHeader(text = "System Diagnostics")
             InsetGroupedList {
                 ListRow(
                     title = "Bluetooth link",
-                    subtitle = "BLE radio state: ${diagnostics.bleState}",
+                    subtitle = "Radio state: ${diagnostics.bleState}",
                     icon = Icons.Outlined.Bluetooth,
                     iconBackgroundColor = colors.accent,
                     trailing = {
@@ -205,37 +290,193 @@ fun SettingsScreen(viewModel: MainViewModel) {
                 )
             }
 
-            // Test SMS Action
-            CapsuleButton(
-                text = "Send Test SMS to Primary Contact",
-                icon = Icons.AutoMirrored.Outlined.Send,
-                onClick = {
-                    val primary = contacts.firstOrNull { it.isPrimary } ?: contacts.firstOrNull()
-                    if (primary == null) {
-                        Toast.makeText(context, "Please add an emergency contact first", Toast.LENGTH_SHORT).show()
-                    } else {
-                        viewModel.sendTestSmsToContact(primary) { success, msg ->
-                            Toast.makeText(context, if (success) "Test SMS queued to ${primary.phoneNumber}" else "Failed: $msg", Toast.LENGTH_LONG).show()
-                            diagnostics = viewModel.getDiagnosticsInfo()
+            // Actions: Test SMS & BLE Diagnostics
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                CapsuleButton(
+                    text = "Test SMS",
+                    icon = Icons.AutoMirrored.Outlined.Send,
+                    onClick = {
+                        val primary = contacts.firstOrNull { it.isPrimary } ?: contacts.firstOrNull()
+                        if (primary == null) {
+                            Toast.makeText(context, "Please add an emergency contact first", Toast.LENGTH_SHORT).show()
+                        } else {
+                            viewModel.sendTestSmsToContact(primary) { success, msg ->
+                                Toast.makeText(context, if (success) "Test SMS queued to ${primary.phoneNumber}" else "Failed: $msg", Toast.LENGTH_LONG).show()
+                                diagnostics = viewModel.getDiagnosticsInfo()
+                            }
+                        }
+                    },
+                    style = ButtonStyle.Tinted,
+                    modifier = Modifier.weight(1f)
+                )
+
+                CapsuleButton(
+                    text = if (isRunningScanTest) "Scanning…" else "Scan Test",
+                    icon = Icons.Outlined.Search,
+                    onClick = {
+                        if (!isRunningScanTest) {
+                            isRunningScanTest = true
+                            scanTestResults = emptyList()
+                            viewModel.runBleScanTest { results ->
+                                scanTestResults = results
+                                isRunningScanTest = false
+                            }
+                        }
+                    },
+                    style = ButtonStyle.Tinted,
+                    modifier = Modifier.weight(1f)
+                )
+            }
+
+            // Scan Test Live Results
+            AnimatedVisibility(visible = scanTestResults.isNotEmpty()) {
+                GlassCard(modifier = Modifier.fillMaxWidth()) {
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = "Scan Test Results (${scanTestResults.size} nearby)",
+                                style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                                color = colors.textPrimary
+                            )
+                            IconButton(onClick = { scanTestResults = emptyList() }) {
+                                Icon(Icons.Outlined.Close, contentDescription = "Dismiss", tint = colors.textTertiary)
+                            }
+                        }
+
+                        scanTestResults.forEach { result ->
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clip(RoundedCornerShape(12.dp))
+                                    .background(if (result.matchesCareBuddy) colors.accentSubtle else colors.glassSurfaceSubtle)
+                                    .padding(horizontal = 12.dp, vertical = 8.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Column {
+                                    Text(
+                                        text = result.name,
+                                        style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.SemiBold),
+                                        color = colors.textPrimary
+                                    )
+                                    Text(
+                                        text = "${result.maskedAddress} • ${result.rssi} dBm",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = colors.textSecondary
+                                    )
+                                }
+                                if (result.matchesCareBuddy) {
+                                    StatusPill(label = "Match", dotColor = colors.success)
+                                }
+                            }
                         }
                     }
-                },
-                style = ButtonStyle.Tinted,
-                modifier = Modifier.fillMaxWidth()
-            )
+                }
+            }
+
+            // Real-Time In-App Event Log Viewer
+            SectionHeader(text = "BLE Event Log")
+            InsetGroupedList {
+                ListRow(
+                    title = if (showEventLog) "Hide Event Log" else "View Live BLE Log",
+                    subtitle = "Last 200 tagged state changes, GATT status codes, and watchdogs",
+                    icon = Icons.Outlined.Terminal,
+                    iconBackgroundColor = colors.tintGray,
+                    showChevron = true,
+                    showDivider = false,
+                    onClick = {
+                        showEventLog = !showEventLog
+                        if (showEventLog) {
+                            eventLogs = viewModel.getBleEventLogs()
+                        }
+                    }
+                )
+            }
+
+            AnimatedVisibility(visible = showEventLog) {
+                GlassCard(modifier = Modifier.fillMaxWidth()) {
+                    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = "Recent Events (${eventLogs.size})",
+                                style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                                color = colors.textPrimary
+                            )
+                            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                CapsuleButton(
+                                    text = "Refresh",
+                                    onClick = { eventLogs = viewModel.getBleEventLogs() },
+                                    style = ButtonStyle.Plain,
+                                    minHeight = 32.dp
+                                )
+                                CapsuleButton(
+                                    text = "Copy",
+                                    onClick = {
+                                        val cm = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+                                        val clip = ClipData.newPlainText("CareBuddy BLE Log", eventLogs.joinToString("\n"))
+                                        cm.setPrimaryClip(clip)
+                                        Toast.makeText(context, "BLE log copied to clipboard", Toast.LENGTH_SHORT).show()
+                                    },
+                                    style = ButtonStyle.Tinted,
+                                    minHeight = 32.dp
+                                )
+                            }
+                        }
+
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .heightIn(max = 240.dp)
+                                .clip(RoundedCornerShape(12.dp))
+                                .background(Color.Black.copy(alpha = 0.6f))
+                                .padding(10.dp)
+                                .verticalScroll(rememberScrollState())
+                        ) {
+                            if (eventLogs.isEmpty()) {
+                                Text(
+                                    text = "No events logged yet.",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = Color.Gray
+                                )
+                            } else {
+                                Text(
+                                    text = eventLogs.joinToString("\n"),
+                                    style = MaterialTheme.typography.bodySmall.copy(
+                                        fontFamily = FontFamily.Monospace,
+                                        fontSize = 11.sp,
+                                        lineHeight = 14.sp
+                                    ),
+                                    color = Color(0xFF64D2FF)
+                                )
+                            }
+                        }
+                    }
+                }
+            }
 
             // Section 5: About App
             SectionHeader(text = "About CareBuddy")
             InsetGroupedList {
                 ListRow(
                     title = "Application version",
-                    subtitle = "1.0.0 (Build 1)",
+                    subtitle = "1.1.0 (Build 2) • Release",
                     icon = Icons.Outlined.Info,
                     iconBackgroundColor = colors.tintGray,
                     showDivider = false,
                     trailing = {
                         Text(
-                            text = "Release v1.0.0",
+                            text = "v1.1.0",
                             style = MaterialTheme.typography.bodySmall,
                             color = colors.textSecondary
                         )

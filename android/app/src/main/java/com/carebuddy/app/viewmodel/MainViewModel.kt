@@ -9,6 +9,8 @@ import android.util.Log
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.carebuddy.app.ble.BleConnectionState
+import com.carebuddy.app.ble.BleStatus
+import com.carebuddy.app.ble.BleScanTestResult
 import com.carebuddy.app.ble.CareBuddyBleManager
 import com.carebuddy.app.data.CareBuddyRepository
 import com.carebuddy.app.data.EmergencyContact
@@ -36,12 +38,16 @@ data class SosAlertState(
 class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     private val repository = CareBuddyRepository(application)
-    val bleManager = CareBuddyBleManager(application)
+    val bleManager = CareBuddyBleManager.getInstance(application)
     val sosDispatcher = SosDispatcher(application, repository)
 
+    val bleStatus: StateFlow<BleStatus> = bleManager.status
     val connectionState: StateFlow<BleConnectionState> = bleManager.connectionState
     val deviceName: StateFlow<String?> = bleManager.deviceName
     val sosDispatchState: StateFlow<SosDispatchState> = sosDispatcher.dispatchState
+
+    val touchMinMs = MutableStateFlow(repository.getTouchMinMs())
+    val sosHoldMs = MutableStateFlow(repository.getSosHoldMs())
 
     val ringingReminder: StateFlow<Reminder?> = CareBuddyBleService.instance?.ringingReminder
         ?: MutableStateFlow(null)
@@ -267,5 +273,27 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             addProperty("epoch", epochSeconds)
         }
         bleManager.sendJson(json)
+    }
+
+    fun updateTouchMinMs(ms: Int) {
+        touchMinMs.value = ms
+        repository.saveTouchMinMs(ms)
+    }
+
+    fun updateSosHoldMs(ms: Int) {
+        sosHoldMs.value = ms
+        repository.saveSosHoldMs(ms)
+    }
+
+    fun getBleEventLogs(): List<String> {
+        return bleManager.getEventLogs()
+    }
+
+    fun clearBleEventLogs() {
+        bleManager.clearEventLogs()
+    }
+
+    fun runBleScanTest(onResult: (List<BleScanTestResult>) -> Unit) {
+        bleManager.startScanTest(10_000L, onResult)
     }
 }

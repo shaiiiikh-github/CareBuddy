@@ -9,6 +9,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.carebuddy.app.ble.BleConnectionState
+import com.carebuddy.app.ble.BleStatus
 import com.carebuddy.app.data.EmergencyContact
 import com.carebuddy.app.data.Reminder
 import com.carebuddy.app.data.RepeatOption
@@ -71,7 +72,7 @@ private val sampleContacts = listOf(
 fun DashboardLightPreview() {
     CareBuddyTheme(darkTheme = false) {
         DashboardContent(
-            connectionState = BleConnectionState.CONNECTED,
+            bleStatus = BleStatus.Connected,
             deviceName = "CareBuddy-A14F",
             reminders = sampleReminders,
             contactsCount = sampleContacts.size,
@@ -92,7 +93,7 @@ fun DashboardLightPreview() {
 fun DashboardDarkPreview() {
     CareBuddyTheme(darkTheme = true) {
         DashboardContent(
-            connectionState = BleConnectionState.CONNECTED,
+            bleStatus = BleStatus.Connected,
             deviceName = "CareBuddy-A14F",
             reminders = sampleReminders,
             contactsCount = sampleContacts.size,

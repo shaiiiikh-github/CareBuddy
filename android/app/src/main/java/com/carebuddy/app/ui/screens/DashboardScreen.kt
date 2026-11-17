@@ -21,6 +21,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.carebuddy.app.ble.BleConnectionState
+import com.carebuddy.app.ble.BleStatus
 import com.carebuddy.app.data.Reminder
 import com.carebuddy.app.ui.components.*
 import com.carebuddy.app.ui.theme.CareBuddyTheme
@@ -35,7 +36,7 @@ fun DashboardScreen(
     onNavigateToReminders: () -> Unit,
     onNavigateToEmergency: () -> Unit
 ) {
-    val connectionState by viewModel.connectionState.collectAsState()
+    val bleStatus by viewModel.bleStatus.collectAsState()
     val deviceName by viewModel.deviceName.collectAsState()
     val reminders by viewModel.reminders.collectAsState()
     val contacts by viewModel.emergencyContacts.collectAsState()
@@ -47,7 +48,7 @@ fun DashboardScreen(
     }
 
     DashboardContent(
-        connectionState = connectionState,
+        bleStatus = bleStatus,
         deviceName = deviceName,
         reminders = reminders,
         contactsCount = contacts.size,
@@ -55,10 +56,10 @@ fun DashboardScreen(
         ringingReminder = ringingReminder,
         currentDate = currentDate,
         onConnectClick = {
-            if (connectionState == BleConnectionState.DISCONNECTED) {
-                viewModel.connectDevice()
-            } else {
+            if (bleStatus is BleStatus.Connected) {
                 viewModel.disconnectDevice()
+            } else {
+                viewModel.connectDevice()
             }
         },
         onSyncTimeClick = { viewModel.syncTimeToDevice() },
@@ -70,7 +71,7 @@ fun DashboardScreen(
 
 @Composable
 fun DashboardContent(
-    connectionState: BleConnectionState,
+    bleStatus: BleStatus,
     deviceName: String?,
     reminders: List<Reminder>,
     contactsCount: Int,
@@ -97,7 +98,7 @@ fun DashboardContent(
         trailingAction = {
             // Live Device State Pill with pulse indicator
             LiveConnectionPill(
-                connectionState = connectionState,
+                status = bleStatus,
                 deviceName = deviceName,
                 onClick = onConnectClick
             )
@@ -328,27 +329,36 @@ fun DashboardContent(
  */
 @Composable
 fun LiveConnectionPill(
-    connectionState: BleConnectionState,
+    status: BleStatus,
     deviceName: String?,
     onClick: () -> Unit
 ) {
     val colors = CareBuddyTheme.colors
 
-    val dotColor = when (connectionState) {
-        BleConnectionState.CONNECTED -> colors.success
-        BleConnectionState.CONNECTING,
-        BleConnectionState.RECONNECTING -> colors.warning
-        BleConnectionState.DISCONNECTED -> colors.tintGray
+    val dotColor = when (status) {
+        is BleStatus.Connected -> colors.success
+        is BleStatus.Connecting, is BleStatus.SettingUp, is BleStatus.Scanning -> colors.warning
+        is BleStatus.DeviceNotFound, is BleStatus.LocationOff -> colors.warning
+        is BleStatus.PermissionNeeded -> colors.danger
+        else -> colors.tintGray
     }
 
-    val stateLabel = when (connectionState) {
-        BleConnectionState.CONNECTED -> deviceName ?: "Connected"
-        BleConnectionState.CONNECTING -> "Connecting…"
-        BleConnectionState.RECONNECTING -> "Reconnecting…"
-        BleConnectionState.DISCONNECTED -> "Offline"
+    val stateLabel = when (status) {
+        is BleStatus.Connected -> deviceName ?: "Connected"
+        is BleStatus.Connecting -> "Connecting…"
+        is BleStatus.SettingUp -> "Setting up…"
+        is BleStatus.Scanning -> "Searching…"
+        is BleStatus.DeviceNotFound -> "Not found"
+        is BleStatus.BluetoothOff -> "Bluetooth off"
+        is BleStatus.PermissionNeeded -> "Permission needed"
+        is BleStatus.LocationOff -> "Location off"
+        is BleStatus.Disconnected -> "Offline"
+        is BleStatus.Idle -> "Idle"
     }
 
-    // Slow calm pulse for connecting / connected states
+    val isPulsing = status is BleStatus.Connecting || status is BleStatus.SettingUp || status is BleStatus.Scanning
+
+    // Slow calm pulse for connecting / setting up / scanning states
     val infiniteTransition = rememberInfiniteTransition(label = "pulse_transition")
     val pulseAlpha by infiniteTransition.animateFloat(
         initialValue = 0.4f,
@@ -374,7 +384,7 @@ fun LiveConnectionPill(
                 .size(8.dp)
                 .clip(CircleShape)
                 .background(
-                    if (connectionState != BleConnectionState.DISCONNECTED) {
+                    if (isPulsing) {
                         dotColor.copy(alpha = pulseAlpha)
                     } else dotColor
                 )
