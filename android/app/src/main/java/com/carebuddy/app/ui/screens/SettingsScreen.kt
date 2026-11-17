@@ -29,6 +29,7 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.carebuddy.app.BuildConfig
 import com.carebuddy.app.ble.BleScanTestResult
 import com.carebuddy.app.ble.BleStatus
 import com.carebuddy.app.ui.components.*
@@ -42,8 +43,6 @@ fun SettingsScreen(viewModel: MainViewModel) {
     val deviceName by viewModel.deviceName.collectAsState()
     val currentSosMsg by viewModel.sosCustomMessage.collectAsState()
     val contacts by viewModel.emergencyContacts.collectAsState()
-    val touchMinMs by viewModel.touchMinMs.collectAsState()
-    val sosHoldMs by viewModel.sosHoldMs.collectAsState()
 
     var sosMessageText by remember(currentSosMsg) { mutableStateOf(currentSosMsg) }
     var diagnostics by remember { mutableStateOf(viewModel.getDiagnosticsInfo()) }
@@ -156,82 +155,7 @@ fun SettingsScreen(viewModel: MainViewModel) {
                 leadingIcon = Icons.Outlined.Sms
             )
 
-            // Section 3: Hardware Sensitivity & Timing Preferences
-            SectionHeader(text = "Hardware Sensitivity")
-            InsetGroupedList {
-                ListRow(
-                    title = "Minimum touch press",
-                    subtitle = "$touchMinMs ms debounce window on TTP223 sensor",
-                    icon = Icons.Outlined.TouchApp,
-                    iconBackgroundColor = colors.warning,
-                    trailing = {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            IconButton(
-                                onClick = {
-                                    val newVal = (touchMinMs - 10).coerceAtLeast(40)
-                                    viewModel.updateTouchMinMs(newVal)
-                                },
-                                modifier = Modifier.size(32.dp)
-                            ) {
-                                Icon(Icons.Outlined.Remove, contentDescription = "Decrease", tint = colors.textPrimary)
-                            }
-                            Text(
-                                text = "$touchMinMs ms",
-                                style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.SemiBold),
-                                color = colors.textPrimary,
-                                modifier = Modifier.padding(horizontal = 4.dp)
-                            )
-                            IconButton(
-                                onClick = {
-                                    val newVal = (touchMinMs + 10).coerceAtMost(300)
-                                    viewModel.updateTouchMinMs(newVal)
-                                },
-                                modifier = Modifier.size(32.dp)
-                            ) {
-                                Icon(Icons.Outlined.Add, contentDescription = "Increase", tint = colors.textPrimary)
-                            }
-                        }
-                    }
-                )
-
-                ListRow(
-                    title = "SOS hold countdown",
-                    subtitle = "${sosHoldMs / 1000} seconds sensor hold to trigger alarm",
-                    icon = Icons.Outlined.Timer,
-                    iconBackgroundColor = colors.danger,
-                    showDivider = false,
-                    trailing = {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            IconButton(
-                                onClick = {
-                                    val newVal = (sosHoldMs - 1000).coerceAtLeast(1000)
-                                    viewModel.updateSosHoldMs(newVal)
-                                },
-                                modifier = Modifier.size(32.dp)
-                            ) {
-                                Icon(Icons.Outlined.Remove, contentDescription = "Decrease", tint = colors.textPrimary)
-                            }
-                            Text(
-                                text = "${sosHoldMs / 1000} s",
-                                style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.SemiBold),
-                                color = colors.textPrimary,
-                                modifier = Modifier.padding(horizontal = 4.dp)
-                            )
-                            IconButton(
-                                onClick = {
-                                    val newVal = (sosHoldMs + 1000).coerceAtMost(10000)
-                                    viewModel.updateSosHoldMs(newVal)
-                                },
-                                modifier = Modifier.size(32.dp)
-                            ) {
-                                Icon(Icons.Outlined.Add, contentDescription = "Increase", tint = colors.textPrimary)
-                            }
-                        }
-                    }
-                )
-            }
-
-            // Section 4: System Diagnostics
+            // Section 3: System Diagnostics
             SectionHeader(text = "System Diagnostics")
             InsetGroupedList {
                 ListRow(
@@ -465,18 +389,18 @@ fun SettingsScreen(viewModel: MainViewModel) {
                 }
             }
 
-            // Section 5: About App
+            // Section 4: About App
             SectionHeader(text = "About CareBuddy")
             InsetGroupedList {
                 ListRow(
                     title = "Application version",
-                    subtitle = "1.1.0 (Build 2) • Release",
+                    subtitle = "${BuildConfig.VERSION_NAME} (Build ${BuildConfig.VERSION_CODE}) • Release",
                     icon = Icons.Outlined.Info,
                     iconBackgroundColor = colors.tintGray,
                     showDivider = false,
                     trailing = {
                         Text(
-                            text = "v1.1.0",
+                            text = "v${BuildConfig.VERSION_NAME}",
                             style = MaterialTheme.typography.bodySmall,
                             color = colors.textSecondary
                         )

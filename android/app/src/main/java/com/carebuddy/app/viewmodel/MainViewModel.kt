@@ -46,9 +46,6 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     val deviceName: StateFlow<String?> = bleManager.deviceName
     val sosDispatchState: StateFlow<SosDispatchState> = sosDispatcher.dispatchState
 
-    val touchMinMs = MutableStateFlow(repository.getTouchMinMs())
-    val sosHoldMs = MutableStateFlow(repository.getSosHoldMs())
-
     val ringingReminder: StateFlow<Reminder?> = CareBuddyBleService.instance?.ringingReminder
         ?: MutableStateFlow(null)
 
@@ -273,16 +270,6 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             addProperty("epoch", epochSeconds)
         }
         bleManager.sendJson(json)
-    }
-
-    fun updateTouchMinMs(ms: Int) {
-        touchMinMs.value = ms
-        repository.saveTouchMinMs(ms)
-    }
-
-    fun updateSosHoldMs(ms: Int) {
-        sosHoldMs.value = ms
-        repository.saveSosHoldMs(ms)
     }
 
     fun getBleEventLogs(): List<String> {

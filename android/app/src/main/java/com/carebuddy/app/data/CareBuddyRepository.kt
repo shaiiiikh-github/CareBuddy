@@ -20,12 +20,25 @@ class CareBuddyRepository(private val prefs: SharedPreferences) {
         private const val KEY_CONTACTS = "key_contacts"
         private const val KEY_CONTACTS_MIGRATED_V2 = "contacts_migrated_v2"
         private const val KEY_DEFAULT_SOS_MSG = "key_default_sos_msg"
+        internal const val KEY_SETTINGS_MIGRATED_V1 = "settings_migrated_v1"
         internal const val KEY_TOUCH_MIN_MS = "key_touch_min_ms"
         internal const val KEY_SOS_HOLD_MS = "key_sos_hold_ms"
     }
 
     init {
         migrateContactsIfNeeded()
+        cleanStaleSettingsIfNeeded()
+    }
+
+    fun cleanStaleSettingsIfNeeded() {
+        val alreadyCleaned = prefs.getBoolean(KEY_SETTINGS_MIGRATED_V1, false)
+        if (alreadyCleaned) return
+
+        prefs.edit()
+            .remove(KEY_TOUCH_MIN_MS)
+            .remove(KEY_SOS_HOLD_MS)
+            .putBoolean(KEY_SETTINGS_MIGRATED_V1, true)
+            .apply()
     }
 
     fun migrateContactsIfNeeded() {
